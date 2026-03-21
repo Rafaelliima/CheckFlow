@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, RefreshCw, Wifi } from 'lucide-react';
 import { RealtimeStatus } from '../hooks/useRealtimeSync';
 
 interface RealtimeStatusIndicatorProps {
@@ -17,22 +17,17 @@ const STATUS_CONFIG: Record<Exclude<RealtimeStatus, 'idle'>, {
     icon: RefreshCw,
   },
   connected: {
-    label: 'Atualização em tempo real conectada',
+    label: 'Online estável. Atualização em tempo real conectada',
     className: 'text-emerald-500',
     icon: CheckCircle2,
   },
-  reconnecting: {
-    label: 'Reconectando atualização em tempo real',
-    className: 'text-amber-500',
-    icon: RefreshCw,
-  },
-  disconnected: {
-    label: 'Atualização em tempo real indisponível',
-    className: 'text-rose-500',
-    icon: AlertCircle,
+  degraded: {
+    label: 'Conexão ruim. Mantendo sincronização local e monitorando a estabilidade',
+    className: 'text-amber-400',
+    icon: Wifi,
   },
   offline: {
-    label: 'Sem internet. Atualização em tempo real pausada',
+    label: 'Offline. As alterações continuam na fila local e serão sincronizadas quando a conexão voltar',
     className: 'text-rose-500',
     icon: AlertCircle,
   },
@@ -68,7 +63,7 @@ export function RealtimeStatusIndicator({ status }: RealtimeStatusIndicatorProps
   if (!config) return null;
 
   const Icon = config.icon;
-  const animated = status === 'connecting' || status === 'reconnecting';
+  const animated = status === 'connecting';
 
   return (
     <div className="relative" ref={containerRef}>
@@ -94,7 +89,7 @@ export function RealtimeStatusIndicator({ status }: RealtimeStatusIndicatorProps
         <div
           role="dialog"
           aria-live="polite"
-          className="absolute right-0 top-12 z-20 w-52 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-700 shadow-lg"
+          className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-700 shadow-lg"
           data-testid="realtime-status-tooltip"
         >
           {config.label}

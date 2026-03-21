@@ -5,9 +5,13 @@ import { Analysis, AnalysisItem } from '../types';
 import toast from 'react-hot-toast';
 import { addDebugLog } from '../lib/debug';
 
-export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'offline' | 'error';
+export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'degraded' | 'offline' | 'error';
 
-const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
+const HEARTBEAT_INTERVAL_MS = 15000;
+const HEARTBEAT_TIMEOUT_MS = 3000;
+const DEGRADED_LATENCY_MS = 1500;
+const OFFLINE_FAILURE_THRESHOLD = 3;
+const ONLINE_SUCCESS_THRESHOLD = 1;
 
 export function useRealtimeSync(analysisId: string | undefined) {
   const [status, setStatus] = useState<RealtimeStatus>(() => {
@@ -16,10 +20,15 @@ export function useRealtimeSync(analysisId: string | undefined) {
   });
   const [retryCount, setRetryCount] = useState(0);
   const channelRef = useRef<any>(null);
-  const retryTimeoutRef = useRef<number | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const heartbeatIntervalRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectionGenerationRef = useRef(0);
   const processedEventKeysRef = useRef<Map<string, number>>(new Map());
+  const heartbeatFailuresRef = useRef(0);
+  const heartbeatSuccessesRef = useRef(0);
+  const isRealtimeSubscribedRef = useRef(false);
+  const recoveryModeRef = useRef(false);
 
   useEffect(() => {
     if (!analysisId) {
@@ -27,10 +36,17 @@ export function useRealtimeSync(analysisId: string | undefined) {
       return;
     }
 
-    const clearRetry = () => {
-      if (retryTimeoutRef.current !== null) {
-        window.clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = null;
+    const clearReconnect = () => {
+      if (reconnectTimeoutRef.current !== null) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+
+    const clearHeartbeat = () => {
+      if (heartbeatIntervalRef.current !== null) {
+        window.clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
       }
     };
 
@@ -55,24 +71,104 @@ export function useRealtimeSync(analysisId: string | undefined) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+      isRealtimeSubscribedRef.current = false;
     };
 
-    const scheduleReconnect = () => {
+    const updateConnectivityStatus = (next: 'connected' | 'degraded' | 'offline') => {
       if (!navigator.onLine) {
         setStatus('offline');
         return;
       }
 
-      if (retryTimeoutRef.current !== null) return;
+      if (next === 'offline') {
+        setStatus('offline');
+        return;
+      }
+
+      if (next === 'degraded') {
+        setStatus('degraded');
+        return;
+      }
+
+      setStatus(isRealtimeSubscribedRef.current ? 'connected' : 'connecting');
+    };
+
+    const heartbeat = async () => {
+      if (!navigator.onLine) {
+        heartbeatFailuresRef.current = OFFLINE_FAILURE_THRESHOLD;
+        heartbeatSuccessesRef.current = 0;
+        updateConnectivityStatus('offline');
+        return;
+      }
+
+      const startedAt = performance.now();
+      try {
+        await Promise.race([
+          supabase.from('analyses').select('id', { head: true, count: 'exact' }).limit(1),
+          new Promise((_, reject) => {
+            window.setTimeout(() => reject(new Error('heartbeat_timeout')), HEARTBEAT_TIMEOUT_MS);
+          }),
+        ]);
+
+        const latency = performance.now() - startedAt;
+        heartbeatFailuresRef.current = 0;
+        heartbeatSuccessesRef.current += 1;
+
+        if (latency > DEGRADED_LATENCY_MS) {
+          heartbeatSuccessesRef.current = 0;
+          recoveryModeRef.current = true;
+          updateConnectivityStatus('degraded');
+          return;
+        }
+
+        const recoveredEnough = !recoveryModeRef.current || heartbeatSuccessesRef.current >= ONLINE_SUCCESS_THRESHOLD;
+        if (recoveredEnough) {
+          recoveryModeRef.current = false;
+          updateConnectivityStatus('connected');
+          return;
+        }
+
+        updateConnectivityStatus('degraded');
+      } catch (error) {
+        heartbeatFailuresRef.current += 1;
+        heartbeatSuccessesRef.current = 0;
+        recoveryModeRef.current = true;
+        addDebugLog('warn', 'Heartbeat de conectividade falhou', {
+          analysisId,
+          failures: heartbeatFailuresRef.current,
+          error,
+        });
+
+        if (heartbeatFailuresRef.current >= OFFLINE_FAILURE_THRESHOLD) {
+          updateConnectivityStatus('offline');
+        } else {
+          updateConnectivityStatus('degraded');
+        }
+      }
+    };
+
+    const startHeartbeat = () => {
+      clearHeartbeat();
+      heartbeat();
+      heartbeatIntervalRef.current = window.setInterval(heartbeat, HEARTBEAT_INTERVAL_MS);
+    };
+
+    const scheduleReconnect = () => {
+      if (!navigator.onLine) {
+        updateConnectivityStatus('offline');
+        return;
+      }
+
+      if (reconnectTimeoutRef.current !== null) return;
 
       const attempt = reconnectAttemptsRef.current;
-      const delay = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
+      const delay = [1000, 2000, 4000, 8000, 10000][Math.min(attempt, 4)];
       reconnectAttemptsRef.current += 1;
       setRetryCount(reconnectAttemptsRef.current);
-      setStatus('reconnecting');
+      updateConnectivityStatus('degraded');
 
-      retryTimeoutRef.current = window.setTimeout(() => {
-        retryTimeoutRef.current = null;
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        reconnectTimeoutRef.current = null;
         connect();
       }, delay);
     };
@@ -97,8 +193,6 @@ export function useRealtimeSync(analysisId: string | undefined) {
         if (!shouldProcessEvent(`analysis_items:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
         const localRecord = await db.analysis_items.get(newRecord.id);
-
-        // Last write wins
         if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
           await db.analysis_items.put(newRecord);
           toast('Item atualizado por outro usuário', { icon: '🔄' });
@@ -128,8 +222,6 @@ export function useRealtimeSync(analysisId: string | undefined) {
         if (!shouldProcessEvent(`analyses:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
         const localRecord = await db.analyses.get(newRecord.id);
-
-        // Last write wins
         if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
           await db.analyses.put(newRecord);
           toast('Análise atualizada por outro usuário', { icon: '🔄' });
@@ -140,15 +232,15 @@ export function useRealtimeSync(analysisId: string | undefined) {
     };
 
     const connect = () => {
-      clearRetry();
+      clearReconnect();
 
       if (!navigator.onLine) {
-        setStatus('offline');
+        updateConnectivityStatus('offline');
         return;
       }
 
       cleanupChannel();
-      setStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
+      setStatus((current) => (current === 'offline' ? 'degraded' : 'connecting'));
       addDebugLog('info', 'Conectando realtime', { analysisId, attempt: reconnectAttemptsRef.current + 1 });
       const generation = connectionGenerationRef.current + 1;
       connectionGenerationRef.current = generation;
@@ -183,19 +275,13 @@ export function useRealtimeSync(analysisId: string | undefined) {
         if (subscriptionStatus === 'SUBSCRIBED') {
           reconnectAttemptsRef.current = 0;
           setRetryCount(0);
-          setStatus('connected');
+          isRealtimeSubscribedRef.current = true;
+          updateConnectivityStatus(heartbeatSuccessesRef.current > 0 ? 'connected' : 'degraded');
           return;
         }
 
-        if (subscriptionStatus === 'CHANNEL_ERROR') {
-          setStatus('error');
-          cleanupChannel();
-          scheduleReconnect();
-          return;
-        }
-
-        if (subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CLOSED') {
-          setStatus('disconnected');
+        if (subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CLOSED') {
+          isRealtimeSubscribedRef.current = false;
           cleanupChannel();
           scheduleReconnect();
         }
@@ -203,24 +289,34 @@ export function useRealtimeSync(analysisId: string | undefined) {
     };
 
     const handleOnline = () => {
+      heartbeatFailuresRef.current = 0;
+      heartbeatSuccessesRef.current = 0;
+      recoveryModeRef.current = true;
       reconnectAttemptsRef.current = 0;
       setRetryCount(0);
+      startHeartbeat();
       connect();
     };
 
     const handleOffline = () => {
-      clearRetry();
+      clearReconnect();
+      clearHeartbeat();
       cleanupChannel();
-      setStatus('offline');
+      heartbeatFailuresRef.current = OFFLINE_FAILURE_THRESHOLD;
+      heartbeatSuccessesRef.current = 0;
+      recoveryModeRef.current = true;
+      updateConnectivityStatus('offline');
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    startHeartbeat();
     connect();
 
     return () => {
-      clearRetry();
+      clearReconnect();
+      clearHeartbeat();
       cleanupChannel();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);

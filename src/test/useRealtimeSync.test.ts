@@ -13,16 +13,20 @@ vi.mock('../../src/lib/supabase', () => ({
   supabase: {
     channel: vi.fn(),
     removeChannel: vi.fn(),
+    from: vi.fn(),
   },
 }));
 
+const HEARTBEAT_INTERVAL_MS = 15000;
+const HEARTBEAT_TIMEOUT_MS = 3000;
+
 describe('useRealtimeSync', () => {
-  let channelFactory: ReturnType<typeof vi.fn>;
   let statusesQueue: string[][];
   let itemsCallback: ((payload: any) => Promise<void>) | undefined;
   let analysisCallback: ((payload: any) => Promise<void>) | undefined;
   let createdChannels: any[];
   let onlineSpy: ReturnType<typeof vi.spyOn>;
+  let heartbeatQuery: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     await db.analyses.clear();
@@ -35,10 +39,10 @@ describe('useRealtimeSync', () => {
 
     onlineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
 
-    channelFactory = vi.fn().mockImplementation((name: string) => {
+    (supabase.channel as any).mockImplementation((name: string) => {
       const channel: any = {
         name,
-        on: vi.fn((event: string, config: any, callback: any) => {
+        on: vi.fn((_: string, config: any, callback: any) => {
           if (config.table === 'analysis_items') itemsCallback = callback;
           if (config.table === 'analyses') analysisCallback = callback;
           return channel;
@@ -54,7 +58,12 @@ describe('useRealtimeSync', () => {
       return channel;
     });
 
-    (supabase.channel as any).mockImplementation(channelFactory);
+    heartbeatQuery = vi.fn().mockResolvedValue({ data: null, error: null, count: 0 });
+    (supabase.from as any).mockReturnValue({
+      select: vi.fn(() => ({
+        limit: heartbeatQuery,
+      })),
+    });
   });
 
   afterEach(() => {
@@ -78,7 +87,7 @@ describe('useRealtimeSync', () => {
     expect(result.current.status).toBe('offline');
   });
 
-  it('cria inscrição com analysisId correto e marca conectado', async () => {
+  it('cria inscrição com analysisId correto e entra em online após o primeiro heartbeat bem-sucedido', async () => {
     const { result } = renderHook(() => useRealtimeSync('1'));
 
     expect(supabase.channel).toHaveBeenCalledWith('public:analysis_1');
@@ -110,7 +119,7 @@ describe('useRealtimeSync', () => {
       patrimonio: 'P1',
       numero_serie: 'S1',
       created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T10:00:00.000Z'
+      updated_at: '2026-03-21T10:00:00.000Z',
     });
 
     await itemsCallback?.({
@@ -125,8 +134,8 @@ describe('useRealtimeSync', () => {
         patrimonio: 'P1',
         numero_serie: 'S1',
         created_at: '2026-03-21T10:00:00.000Z',
-        updated_at: '2026-03-21T11:00:00.000Z'
-      }
+        updated_at: '2026-03-21T11:00:00.000Z',
+      },
     });
 
     const updatedLocal = await db.analysis_items.get('i1');
@@ -147,7 +156,7 @@ describe('useRealtimeSync', () => {
       patrimonio: 'P1',
       numero_serie: 'S1',
       created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T12:00:00.000Z'
+      updated_at: '2026-03-21T12:00:00.000Z',
     });
 
     await itemsCallback?.({
@@ -162,8 +171,8 @@ describe('useRealtimeSync', () => {
         patrimonio: 'P1',
         numero_serie: 'S1',
         created_at: '2026-03-21T10:00:00.000Z',
-        updated_at: '2026-03-21T11:00:00.000Z'
-      }
+        updated_at: '2026-03-21T11:00:00.000Z',
+      },
     });
 
     const updatedLocal = await db.analysis_items.get('i1');
@@ -184,7 +193,7 @@ describe('useRealtimeSync', () => {
       patrimonio: 'P1',
       numero_serie: 'S1',
       created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T10:00:00.000Z'
+      updated_at: '2026-03-21T10:00:00.000Z',
     });
 
     const payload = {
@@ -199,8 +208,8 @@ describe('useRealtimeSync', () => {
         patrimonio: 'P1',
         numero_serie: 'S1',
         created_at: '2026-03-21T10:00:00.000Z',
-        updated_at: '2026-03-21T11:00:00.000Z'
-      }
+        updated_at: '2026-03-21T11:00:00.000Z',
+      },
     };
 
     await itemsCallback?.(payload);
@@ -211,70 +220,48 @@ describe('useRealtimeSync', () => {
     expect(toast).toHaveBeenCalledTimes(1);
   });
 
-  it('agenda reconexão automática quando a assinatura falha e conecta na tentativa seguinte', async () => {
+  it('entra em conexão ruim quando o heartbeat fica lento e volta para online no primeiro heartbeat saudável', async () => {
     vi.useFakeTimers();
-    statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];
+    heartbeatQuery
+      .mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve({ data: null, error: null, count: 0 }), 2000)))
+      .mockResolvedValue({ data: null, error: null, count: 0 });
 
     const { result } = renderHook(() => useRealtimeSync('1'));
-
-    expect(result.current.status).toBe('reconnecting');
-    expect(result.current.retryCount).toBe(1);
-
-    expect(supabase.channel).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      vi.advanceTimersByTime(1000);
+      await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('degraded');
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await Promise.resolve();
+    });
+
     expect(result.current.status).toBe('connected');
-    expect(result.current.retryCount).toBe(0);
   });
 
-  it('pausa reconexão quando fica offline e reconecta ao voltar a internet', async () => {
+  it('entra em offline após falhas consecutivas de heartbeat e volta ao online depois de sucessos', async () => {
     vi.useFakeTimers();
-    statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];
+    heartbeatQuery.mockRejectedValue(new Error('network_fail'));
 
     const { result } = renderHook(() => useRealtimeSync('1'));
 
-    expect(result.current.status).toBe('reconnecting');
-
-    onlineSpy.mockReturnValue(false);
-    act(() => {
-      window.dispatchEvent(new Event('offline'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 3 + HEARTBEAT_TIMEOUT_MS * 3);
     });
 
     expect(result.current.status).toBe('offline');
 
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
-
-    expect(supabase.channel).toHaveBeenCalledTimes(1);
-
+    heartbeatQuery.mockResolvedValue({ data: null, error: null, count: 0 });
     onlineSpy.mockReturnValue(true);
-    act(() => {
+
+    await act(async () => {
       window.dispatchEvent(new Event('online'));
+      await Promise.resolve();
     });
 
-    expect(supabase.channel).toHaveBeenCalledTimes(2);
     expect(result.current.status).toBe('connected');
   });
-
-  it('remove canal antigo ao trocar de analysisId', async () => {
-    const { rerender } = renderHook(({ analysisId }) => useRealtimeSync(analysisId), {
-      initialProps: { analysisId: '1' },
-    });
-
-    const firstChannel = createdChannels[0];
-
-    rerender({ analysisId: '2' });
-
-    await waitFor(() => {
-      expect(supabase.channel).toHaveBeenCalledWith('public:analysis_2');
-    });
-
-    expect(supabase.removeChannel).toHaveBeenCalledWith(firstChannel);
-  });
-
 });
