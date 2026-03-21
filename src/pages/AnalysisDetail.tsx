@@ -170,28 +170,53 @@ export default function AnalysisDetail() {
   return (
     <div className="min-h-screen bg-slate-950 pb-24 text-slate-100">
       <OfflineIndicator />
-      <Header title={analysis.file_name || 'Análise'}>
+      <Header
+        title={analysis.file_name || 'Análise'}
+        mobileMenuChildren={(
+          <>
+            <PDFDownloadLink
+              document={<AnalysisPDF analysis={analysis} items={items} />}
+              fileName={`relatorio-${analysis.id}.pdf`}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-base font-medium text-slate-100 transition hover:bg-slate-800 hover:text-cyan-300"
+            >
+              {({ loading }) => (
+                <>
+                  <FileDown className="h-5 w-5" />
+                  {loading ? 'Gerando PDF...' : 'Baixar PDF'}
+                </>
+              )}
+            </PDFDownloadLink>
+            <button
+              type="button"
+              onClick={handleDeleteAnalysis}
+              disabled={deletingAnalysis}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-base font-medium text-red-300 transition hover:bg-red-950/40 disabled:opacity-50"
+            >
+              <Trash2 className="h-5 w-5" />
+              {deletingAnalysis ? 'Apagando análise...' : 'Apagar análise'}
+            </button>
+          </>
+        )}
+      >
         <RealtimeStatusIndicator status={realtimeStatus} />
         <button
           type="button"
           onClick={handleDeleteAnalysis}
           disabled={deletingAnalysis}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
+          className="hidden min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/50 disabled:opacity-50 sm:inline-flex"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">{deletingAnalysis ? 'Apagando...' : 'Apagar análise'}</span>
-          <span className="sm:hidden">Apagar</span>
+          <span>{deletingAnalysis ? 'Apagando...' : 'Apagar análise'}</span>
         </button>
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
           fileName={`relatorio-${analysis.id}.pdf`}
-          className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[44px]"
+          className="hidden min-h-[44px] items-center justify-center rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:inline-flex"
         >
           {({ loading }) => (
             <>
-              <FileDown className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">{loading ? 'Gerando...' : 'Exportar PDF'}</span>
-              <span className="sm:hidden">PDF</span>
+              <FileDown className="mr-2 h-4 w-4" />
+              <span>{loading ? 'Gerando...' : 'Exportar PDF'}</span>
             </>
           )}
         </PDFDownloadLink>

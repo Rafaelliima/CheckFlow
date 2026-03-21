@@ -3,7 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-export function Header({ title, children }: { title: string, children?: React.ReactNode }) {
+interface HeaderProps {
+  title: string;
+  children?: React.ReactNode;
+  mobileMenuChildren?: React.ReactNode;
+}
+
+export function Header({ title, children, mobileMenuChildren }: HeaderProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -38,6 +44,7 @@ export function Header({ title, children }: { title: string, children?: React.Re
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="ml-auto rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-cyan-300 sm:hidden"
+              aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -48,6 +55,7 @@ export function Header({ title, children }: { title: string, children?: React.Re
       {menuOpen && (
         <div className="border-t border-slate-800 bg-slate-950 sm:hidden">
           <div className="space-y-1 px-2 pb-3 pt-2">
+            {mobileMenuChildren}
             <button
               onClick={handleLogout}
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-base font-medium text-slate-100 transition hover:bg-slate-800 hover:text-cyan-300"

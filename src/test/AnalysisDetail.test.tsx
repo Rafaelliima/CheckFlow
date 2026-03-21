@@ -202,6 +202,23 @@ describe('AnalysisDetail', () => {
     expect(emptyStates[0]).toBeInTheDocument();
   });
 
+
+  it('mantém só o status fora do menu mobile e expõe ações no hamburger', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const menuButton = await screen.findByLabelText('Abrir menu');
+    fireEvent.click(menuButton);
+
+    expect(await screen.findByText('Baixar PDF')).toBeInTheDocument();
+    const deleteLabels = await screen.findAllByText('Apagar análise');
+    expect(deleteLabels[0]).toBeInTheDocument();
+    expect(await screen.findByTestId('realtime-status-button')).toBeInTheDocument();
+  });
+
   it('não exibe ação para adicionar item manualmente', async () => {
     render(
       <BrowserRouter>
