@@ -58,7 +58,7 @@ describe('AnalysisDetail', () => {
     vi.clearAllMocks();
   });
 
-  it('renderiza tabela com itens', async () => {
+  it('renderiza tabela com itens e indicador de colaboração', async () => {
     render(
       <BrowserRouter>
         <AnalysisDetail />
@@ -70,6 +70,9 @@ describe('AnalysisDetail', () => {
     
     const descElements = await screen.findAllByText('Desc');
     expect(descElements[0]).toBeInTheDocument();
+
+    const collabIndicators = await screen.findAllByText(/Colaborativo/i);
+    expect(collabIndicators[0]).toBeInTheDocument();
   });
 
   it('botão de editar status altera valor', async () => {

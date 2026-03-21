@@ -128,11 +128,11 @@ describe('Offline Queue (sync.ts)', () => {
     const analysesData = [{ id: 'a1', user_id: 'u1', file_name: 'Test' }];
     const itemsData = [{ id: 'i1', analysis_id: 'a1', tag: 'T1' }];
 
-    const eqMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
+    const selectMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
     const inMock = vi.fn().mockResolvedValue({ data: itemsData, error: null });
 
     (supabase.from as any).mockImplementation((table: string) => {
-      if (table === 'analyses') return { select: () => ({ eq: eqMock }) };
+      if (table === 'analyses') return { select: selectMock };
       if (table === 'analysis_items') return { select: () => ({ in: inMock }) };
       return {};
     });

@@ -1,6 +1,8 @@
 export interface Analysis {
   id: string;
   user_id: string;
+  created_by?: string;
+  created_by_email?: string;
   file_name: string;
   notes?: string;
   created_at: string;

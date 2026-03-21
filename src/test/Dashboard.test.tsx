@@ -22,7 +22,7 @@ vi.mock('../../src/lib/supabase', () => ({
 
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn(() => [
-    { id: '1', file_name: 'Análise 1', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
+    { id: '1', file_name: 'Análise 1', created_by_email: 'teste@email.com', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
   ]),
 }));
 
@@ -36,7 +36,7 @@ describe('DashboardPage', () => {
     vi.clearAllMocks();
   });
 
-  it('lista análises do usuário', async () => {
+  it('lista análises do usuário com email do criador', async () => {
     render(
       <BrowserRouter>
         <Dashboard />
@@ -44,6 +44,7 @@ describe('DashboardPage', () => {
     );
 
     expect(await screen.findByText('Análise 1')).toBeInTheDocument();
+    expect(await screen.findByText('teste@email.com')).toBeInTheDocument();
   });
 
   it('navega para AnalysisPage ao clicar', async () => {

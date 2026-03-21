@@ -10,7 +10,7 @@ import { AnalysisPDF } from '../components/AnalysisPDF';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
+import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Users } from 'lucide-react';
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
@@ -169,6 +169,11 @@ export default function AnalysisDetail() {
     <div className="min-h-screen bg-slate-50 pb-24">
       <OfflineIndicator />
       <Header title={analysis.file_name}>
+        <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full mr-2">
+          <Users className="w-4 h-4" />
+          <span className="hidden sm:inline">Colaborativo — todos veem esta análise</span>
+          <span className="sm:hidden">Colaborativo</span>
+        </div>
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
           fileName={`relatorio-${analysis.id}.pdf`}

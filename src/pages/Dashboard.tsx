@@ -9,7 +9,7 @@ import { db } from '../lib/db';
 import { pullData, queueMutation } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { FileText, CheckCircle, AlertTriangle, Clock, Plus, Upload } from 'lucide-react';
+import { FileText, CheckCircle, AlertTriangle, Clock, Plus, Upload, User } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -67,6 +67,8 @@ export default function Dashboard() {
       const newAnalysis = {
         id: analysisId,
         user_id: user.id,
+        created_by: user.id,
+        created_by_email: user.email,
         file_name: fileName,
         created_at: now,
         updated_at: now
@@ -116,6 +118,8 @@ export default function Dashboard() {
     const newAnalysis = {
       id: analysisId,
       user_id: user.id,
+      created_by: user.id,
+      created_by_email: user.email,
       file_name: fileName,
       created_at: now,
       updated_at: now
@@ -256,11 +260,15 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="sm:flex sm:justify-between">
-                          <div className="sm:flex">
+                          <div className="sm:flex flex-col gap-1">
                             <p className="flex items-center text-sm text-slate-500">
                               <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-slate-400" />
                               {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                             </p>
+                            <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+                              <User className="w-3 h-3" />
+                              <span>{analysis.created_by_email || 'Usuário'}</span>
+                            </div>
                           </div>
                           <div className="mt-2 flex items-center text-sm text-slate-500 sm:mt-0">
                             <p>

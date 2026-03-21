@@ -33,7 +33,7 @@ export async function pullData(userId: string) {
 
   try {
     // Pull analyses
-    const { data: analyses, error: anError } = await supabase.from('analyses').select('*').eq('user_id', userId);
+    const { data: analyses, error: anError } = await supabase.from('analyses').select('*');
     if (anError) throw anError;
     
     if (analyses) {

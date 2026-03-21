@@ -6,7 +6,7 @@ import { Analysis } from '../types';
 export function useAnalyses(userId: string | undefined) {
   const analyses = useLiveQuery(async () => {
     if (!userId) return [];
-    const ans = await db.analyses.where('user_id').equals(userId).reverse().sortBy('created_at');
+    const ans = await db.analyses.orderBy('created_at').reverse().toArray();
     const items = await db.analysis_items.toArray();
     return ans.map(a => ({
       ...a,
@@ -19,9 +19,12 @@ export function useAnalyses(userId: string | undefined) {
     const analysisId = crypto.randomUUID();
     const now = new Date().toISOString();
     
+    // In a real scenario we'd get email from session, but here we just mock it or leave empty
     const newAnalysis: Analysis = {
       id: analysisId,
       user_id: userId,
+      created_by: userId,
+      created_by_email: 'user@example.com',
       file_name: fileName,
       created_at: now,
       updated_at: now
