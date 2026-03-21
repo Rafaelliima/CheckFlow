@@ -171,6 +171,46 @@ describe('useRealtimeSync', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
+  it('ignora payload duplicado para evitar reaplicação no Dexie', async () => {
+    renderHook(() => useRealtimeSync('1'));
+
+    await db.analysis_items.add({
+      id: 'i1',
+      analysis_id: '1',
+      tag: 'T1',
+      descricao: 'Old',
+      status: 'Pendente',
+      modelo: 'M1',
+      patrimonio: 'P1',
+      numero_serie: 'S1',
+      created_at: '2026-03-21T10:00:00.000Z',
+      updated_at: '2026-03-21T10:00:00.000Z'
+    });
+
+    const payload = {
+      eventType: 'UPDATE',
+      new: {
+        id: 'i1',
+        analysis_id: '1',
+        tag: 'T1',
+        descricao: 'Novo remoto',
+        status: 'OK',
+        modelo: 'M1',
+        patrimonio: 'P1',
+        numero_serie: 'S1',
+        created_at: '2026-03-21T10:00:00.000Z',
+        updated_at: '2026-03-21T11:00:00.000Z'
+      }
+    };
+
+    await itemsCallback?.(payload);
+    await itemsCallback?.(payload);
+
+    const updatedLocal = await db.analysis_items.get('i1');
+    expect(updatedLocal?.descricao).toBe('Novo remoto');
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
   it('agenda reconexão automática quando a assinatura falha e conecta na tentativa seguinte', async () => {
     vi.useFakeTimers();
     statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];

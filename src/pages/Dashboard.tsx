@@ -9,7 +9,7 @@ import { db } from '../lib/db';
 import { pullData, queueMutation } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { FileText, CheckCircle, AlertTriangle, Clock, Plus, Upload, User } from 'lucide-react';
+import { Clock, Plus, Upload, User } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -143,52 +143,12 @@ export default function Dashboard() {
     a.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Calculate metrics
-  const totalAnalyses = analyses.length;
-  const allItems = analyses.flatMap(a => a.analysis_items || []);
-  const totalItems = allItems.length;
-  const itemsOk = allItems.filter(i => i.status === 'OK').length;
-  const itemsPending = allItems.filter(i => i.status === 'Pendente').length;
-  const itemsDivergent = allItems.filter(i => i.status === 'Divergência').length;
-
   return (
     <div className="min-h-screen bg-slate-50 pb-20 sm:pb-0">
       <OfflineIndicator />
       <Header title="RondaAI Dashboard" />
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
-            <div className="flex items-center text-slate-500 mb-2">
-              <FileText className="w-4 h-4 mr-2" />
-              <span className="text-sm font-medium">Total Análises</span>
-            </div>
-            <span className="text-2xl font-bold text-slate-900">{totalAnalyses}</span>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
-            <div className="flex items-center text-emerald-500 mb-2">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              <span className="text-sm font-medium">Itens OK</span>
-            </div>
-            <span className="text-2xl font-bold text-slate-900">{itemsOk}</span>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
-            <div className="flex items-center text-amber-500 mb-2">
-              <Clock className="w-4 h-4 mr-2" />
-              <span className="text-sm font-medium">Pendentes</span>
-            </div>
-            <span className="text-2xl font-bold text-slate-900">{itemsPending}</span>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
-            <div className="flex items-center text-red-500 mb-2">
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              <span className="text-sm font-medium">Divergências</span>
-            </div>
-            <span className="text-2xl font-bold text-slate-900">{itemsDivergent}</span>
-          </div>
-        </div>
-
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
           <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">Minhas Análises</h2>
           <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">

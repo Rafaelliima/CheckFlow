@@ -17,6 +17,8 @@ export function useRealtimeSync(analysisId: string | undefined) {
   const channelRef = useRef<any>(null);
   const retryTimeoutRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const connectionGenerationRef = useRef(0);
+  const processedEventKeysRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!analysisId) {
@@ -29,6 +31,22 @@ export function useRealtimeSync(analysisId: string | undefined) {
         window.clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+    };
+
+    const pruneProcessedEvents = () => {
+      const now = Date.now();
+      for (const [key, timestamp] of processedEventKeysRef.current.entries()) {
+        if (now - timestamp > 30000) {
+          processedEventKeysRef.current.delete(key);
+        }
+      }
+    };
+
+    const shouldProcessEvent = (eventKey: string) => {
+      pruneProcessedEvents();
+      if (processedEventKeysRef.current.has(eventKey)) return false;
+      processedEventKeysRef.current.set(eventKey, Date.now());
+      return true;
     };
 
     const cleanupChannel = () => {
@@ -58,9 +76,12 @@ export function useRealtimeSync(analysisId: string | undefined) {
       }, delay);
     };
 
-    const handleAnalysisItemPayload = async (payload: any) => {
+    const handleAnalysisItemPayload = async (payload: any, generation: number) => {
+      if (generation !== connectionGenerationRef.current) return;
+
       if (payload.eventType === 'DELETE') {
         const oldRecord = payload.old as { id: string };
+        if (!shouldProcessEvent(`analysis_items:${oldRecord.id}:DELETE`)) return;
         const localRecord = await db.analysis_items.get(oldRecord.id);
         if (localRecord) {
           await db.analysis_items.delete(oldRecord.id);
@@ -71,6 +92,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
 
       const newRecord = payload.new as AnalysisItem;
       if (!newRecord) return;
+      if (!shouldProcessEvent(`analysis_items:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
       const localRecord = await db.analysis_items.get(newRecord.id);
 
@@ -81,9 +103,12 @@ export function useRealtimeSync(analysisId: string | undefined) {
       }
     };
 
-    const handleAnalysisPayload = async (payload: any) => {
+    const handleAnalysisPayload = async (payload: any, generation: number) => {
+      if (generation !== connectionGenerationRef.current) return;
+
       if (payload.eventType === 'DELETE') {
         const oldRecord = payload.old as { id: string };
+        if (!shouldProcessEvent(`analyses:${oldRecord.id}:DELETE`)) return;
         const localRecord = await db.analyses.get(oldRecord.id);
         if (localRecord) {
           await db.analyses.delete(oldRecord.id);
@@ -94,6 +119,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
 
       const newRecord = payload.new as Analysis;
       if (!newRecord) return;
+      if (!shouldProcessEvent(`analyses:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
       const localRecord = await db.analyses.get(newRecord.id);
 
@@ -114,6 +140,8 @@ export function useRealtimeSync(analysisId: string | undefined) {
 
       cleanupChannel();
       setStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
+      const generation = connectionGenerationRef.current + 1;
+      connectionGenerationRef.current = generation;
 
       const channel = supabase
         .channel(`public:analysis_${analysisId}`)
@@ -125,7 +153,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
             table: 'analysis_items',
             filter: `analysis_id=eq.${analysisId}`,
           },
-          handleAnalysisItemPayload
+          (payload) => handleAnalysisItemPayload(payload, generation)
         )
         .on(
           'postgres_changes',
@@ -135,11 +163,13 @@ export function useRealtimeSync(analysisId: string | undefined) {
             table: 'analyses',
             filter: `id=eq.${analysisId}`,
           },
-          handleAnalysisPayload
+          (payload) => handleAnalysisPayload(payload, generation)
         );
 
       channelRef.current = channel;
       channel.subscribe((subscriptionStatus: string) => {
+        if (generation !== connectionGenerationRef.current) return;
+
         if (subscriptionStatus === 'SUBSCRIBED') {
           reconnectAttemptsRef.current = 0;
           setRetryCount(0);

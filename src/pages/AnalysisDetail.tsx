@@ -11,13 +11,24 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
-import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Users } from 'lucide-react';
+import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
+
+export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'created_at'>>(items: T[]) {
+  const statusPriority = { Pendente: 0, OK: 1, Divergência: 2 } as const;
+
+  return [...items].sort((a, b) => {
+    const priorityDiff = statusPriority[a.status as keyof typeof statusPriority] - statusPriority[b.status as keyof typeof statusPriority];
+
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+}
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const { status: realtimeStatus, retryCount } = useRealtimeSync(id);
+  const { status: realtimeStatus } = useRealtimeSync(id);
 
   const analysis = useLiveQuery(() => id ? db.analyses.get(id) : undefined, [id]);
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
@@ -152,7 +163,7 @@ export default function AnalysisDetail() {
     return <div className="min-h-screen flex items-center justify-center">Análise não encontrada.</div>;
   }
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = sortAnalysisItems(items.filter(item => {
     const q = searchQuery.toLowerCase();
     return (
       item.tag.toLowerCase().includes(q) ||
@@ -160,7 +171,7 @@ export default function AnalysisDetail() {
       item.patrimonio.toLowerCase().includes(q) ||
       item.numero_serie.toLowerCase().includes(q)
     );
-  });
+  }));
 
   const totalItems = items.length;
   const completedItems = items.filter(i => i.status !== 'Pendente').length;
@@ -170,12 +181,7 @@ export default function AnalysisDetail() {
     <div className="min-h-screen bg-slate-50 pb-24">
       <OfflineIndicator />
       <Header title={analysis.file_name}>
-        <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full mr-2">
-          <Users className="w-4 h-4" />
-          <span className="hidden sm:inline">Colaborativo — todos veem esta análise</span>
-          <span className="sm:hidden">Colaborativo</span>
-        </div>
-        <RealtimeStatusIndicator status={realtimeStatus} retryCount={retryCount} />
+        <RealtimeStatusIndicator status={realtimeStatus} />
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
           fileName={`relatorio-${analysis.id}.pdf`}

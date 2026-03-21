@@ -45,6 +45,8 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('Análise 1')).toBeInTheDocument();
     expect(await screen.findByText('teste@email.com')).toBeInTheDocument();
+    expect(screen.queryByText('Total Análises')).not.toBeInTheDocument();
+    expect(screen.queryByText('Itens OK')).not.toBeInTheDocument();
   });
 
   it('navega para AnalysisPage ao clicar', async () => {
