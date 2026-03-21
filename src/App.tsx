@@ -2,7 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import AnalysisDetail from './pages/AnalysisDetail';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -35,8 +37,16 @@ export default function App() {
           element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
         />
         <Route 
+          path="/register" 
+          element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
+        />
+        <Route 
           path="/dashboard" 
           element={session ? <Dashboard /> : <Navigate to="/" replace />} 
+        />
+        <Route 
+          path="/analysis/:id" 
+          element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} 
         />
       </Routes>
     </Router>
