@@ -1,10 +1,17 @@
 import { db } from './db';
 import { supabase } from './supabase';
+import { addDebugLog } from './debug';
 
 export async function processQueue() {
   if (!navigator.onLine) return;
 
-  const queue = await db.sync_queue.orderBy('timestamp').toArray();
+  let queue;
+  try {
+    queue = await db.sync_queue.orderBy('timestamp').toArray();
+  } catch (error) {
+    addDebugLog('error', 'Falha ao ler fila de sync no IndexedDB', error);
+    return;
+  }
   if (queue.length === 0) return;
 
   for (const op of queue) {
@@ -55,23 +62,28 @@ export async function pullData(userId: string) {
 }
 
 export async function queueMutation(action: 'INSERT'|'UPDATE'|'DELETE', table: 'analyses'|'analysis_items', recordId: string, payload: any) {
-  // 1. Update local DB immediately (Optimistic UI)
-  if (action === 'INSERT' || action === 'UPDATE') {
-    if (table === 'analyses') await db.analyses.put(payload);
-    if (table === 'analysis_items') await db.analysis_items.put(payload);
-  } else if (action === 'DELETE') {
-    if (table === 'analyses') await db.analyses.delete(recordId);
-    if (table === 'analysis_items') await db.analysis_items.delete(recordId);
-  }
+  try {
+    // 1. Update local DB immediately (Optimistic UI)
+    if (action === 'INSERT' || action === 'UPDATE') {
+      if (table === 'analyses') await db.analyses.put(payload);
+      if (table === 'analysis_items') await db.analysis_items.put(payload);
+    } else if (action === 'DELETE') {
+      if (table === 'analyses') await db.analyses.delete(recordId);
+      if (table === 'analysis_items') await db.analysis_items.delete(recordId);
+    }
 
-  // 2. Add to sync queue
-  await db.sync_queue.add({
-    action,
-    table,
-    recordId,
-    payload,
-    timestamp: Date.now()
-  });
+    // 2. Add to sync queue
+    await db.sync_queue.add({
+      action,
+      table,
+      recordId,
+      payload,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    addDebugLog('error', 'Falha no IndexedDB ao enfileirar mutação', { action, table, recordId, error });
+    throw error;
+  }
 
   // 3. Try to process queue in background
   processQueue();

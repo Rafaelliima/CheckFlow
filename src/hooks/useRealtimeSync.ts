@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { db } from '../lib/db';
 import { Analysis, AnalysisItem } from '../types';
 import toast from 'react-hot-toast';
+import { addDebugLog } from '../lib/debug';
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'offline' | 'error';
 
@@ -79,54 +80,62 @@ export function useRealtimeSync(analysisId: string | undefined) {
     const handleAnalysisItemPayload = async (payload: any, generation: number) => {
       if (generation !== connectionGenerationRef.current) return;
 
-      if (payload.eventType === 'DELETE') {
-        const oldRecord = payload.old as { id: string };
-        if (!shouldProcessEvent(`analysis_items:${oldRecord.id}:DELETE`)) return;
-        const localRecord = await db.analysis_items.get(oldRecord.id);
-        if (localRecord) {
-          await db.analysis_items.delete(oldRecord.id);
-          toast('Item removido por outro usuário', { icon: '🗑️' });
+      try {
+        if (payload.eventType === 'DELETE') {
+          const oldRecord = payload.old as { id: string };
+          if (!shouldProcessEvent(`analysis_items:${oldRecord.id}:DELETE`)) return;
+          const localRecord = await db.analysis_items.get(oldRecord.id);
+          if (localRecord) {
+            await db.analysis_items.delete(oldRecord.id);
+            toast('Item removido por outro usuário', { icon: '🗑️' });
+          }
+          return;
         }
-        return;
-      }
 
-      const newRecord = payload.new as AnalysisItem;
-      if (!newRecord) return;
-      if (!shouldProcessEvent(`analysis_items:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
+        const newRecord = payload.new as AnalysisItem;
+        if (!newRecord) return;
+        if (!shouldProcessEvent(`analysis_items:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
-      const localRecord = await db.analysis_items.get(newRecord.id);
+        const localRecord = await db.analysis_items.get(newRecord.id);
 
-      // Last write wins
-      if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
-        await db.analysis_items.put(newRecord);
-        toast('Item atualizado por outro usuário', { icon: '🔄' });
+        // Last write wins
+        if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
+          await db.analysis_items.put(newRecord);
+          toast('Item atualizado por outro usuário', { icon: '🔄' });
+        }
+      } catch (error) {
+        addDebugLog('error', 'Falha no IndexedDB ao aplicar evento realtime de item', error);
       }
     };
 
     const handleAnalysisPayload = async (payload: any, generation: number) => {
       if (generation !== connectionGenerationRef.current) return;
 
-      if (payload.eventType === 'DELETE') {
-        const oldRecord = payload.old as { id: string };
-        if (!shouldProcessEvent(`analyses:${oldRecord.id}:DELETE`)) return;
-        const localRecord = await db.analyses.get(oldRecord.id);
-        if (localRecord) {
-          await db.analyses.delete(oldRecord.id);
-          toast('Análise removida por outro usuário', { icon: '🗑️' });
+      try {
+        if (payload.eventType === 'DELETE') {
+          const oldRecord = payload.old as { id: string };
+          if (!shouldProcessEvent(`analyses:${oldRecord.id}:DELETE`)) return;
+          const localRecord = await db.analyses.get(oldRecord.id);
+          if (localRecord) {
+            await db.analyses.delete(oldRecord.id);
+            toast('Análise removida por outro usuário', { icon: '🗑️' });
+          }
+          return;
         }
-        return;
-      }
 
-      const newRecord = payload.new as Analysis;
-      if (!newRecord) return;
-      if (!shouldProcessEvent(`analyses:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
+        const newRecord = payload.new as Analysis;
+        if (!newRecord) return;
+        if (!shouldProcessEvent(`analyses:${newRecord.id}:${payload.eventType}:${newRecord.updated_at}`)) return;
 
-      const localRecord = await db.analyses.get(newRecord.id);
+        const localRecord = await db.analyses.get(newRecord.id);
 
-      // Last write wins
-      if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
-        await db.analyses.put(newRecord);
-        toast('Análise atualizada por outro usuário', { icon: '🔄' });
+        // Last write wins
+        if (!localRecord || new Date(newRecord.updated_at) > new Date(localRecord.updated_at)) {
+          await db.analyses.put(newRecord);
+          toast('Análise atualizada por outro usuário', { icon: '🔄' });
+        }
+      } catch (error) {
+        addDebugLog('error', 'Falha no IndexedDB ao aplicar evento realtime de análise', error);
       }
     };
 
@@ -140,6 +149,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
 
       cleanupChannel();
       setStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
+      addDebugLog('info', 'Conectando realtime', { analysisId, attempt: reconnectAttemptsRef.current + 1 });
       const generation = connectionGenerationRef.current + 1;
       connectionGenerationRef.current = generation;
 

@@ -12,6 +12,7 @@ import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
 import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
+import { addDebugLog } from '../lib/debug';
 
 export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'created_at'>>(items: T[]) {
   const statusPriority = { Pendente: 0, OK: 1, Divergência: 2 } as const;
@@ -61,6 +62,15 @@ export default function AnalysisDetail() {
     }
     setLoading(false);
   }, [analysis]);
+
+  useEffect(() => {
+    addDebugLog('info', 'Renderizando análise', { analysisId: id, hasAnalysis: Boolean(analysis) });
+  }, [id, analysis]);
+
+  useEffect(() => {
+    if (!analysis?.id) return;
+    addDebugLog('info', 'Renderizando botão PDF', { analysisId: analysis.id });
+  }, [analysis?.id]);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
