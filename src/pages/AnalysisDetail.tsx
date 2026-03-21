@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { AnalysisItem } from '../types';
 import { db } from '../lib/db';
 import { queueMutation } from '../lib/sync';
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import { AnalysisPDF } from '../components/AnalysisPDF';
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
@@ -149,12 +151,21 @@ export default function AnalysisDetail() {
     <div className="min-h-screen bg-gray-100">
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
+          <div className="flex justify-between h-16 items-center">
             <div className="flex items-center">
               <Link to="/dashboard" className="text-indigo-600 hover:text-indigo-900 font-medium mr-4">
                 &larr; Voltar
               </Link>
               <h1 className="text-xl font-bold text-gray-900">{analysis.file_name}</h1>
+            </div>
+            <div>
+              <PDFDownloadLink
+                document={<AnalysisPDF analysis={analysis} items={items} />}
+                fileName={`relatorio-${analysis.id}.pdf`}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                {({ loading }) => (loading ? 'Gerando PDF...' : 'Exportar PDF')}
+              </PDFDownloadLink>
             </div>
           </div>
         </div>
