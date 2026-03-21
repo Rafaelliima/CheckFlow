@@ -11,6 +11,23 @@ import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { Clock, Trash2, Upload, User } from 'lucide-react';
 
+
+export function normalizeImportedItem(item: {
+  tag?: string;
+  descricao?: string;
+  modelo?: string;
+  patrimonio?: string;
+  numero_serie?: string;
+}) {
+  return {
+    tag: item.tag || 'N/A',
+    descricao: item.descricao || 'N/A',
+    modelo: item.modelo || 'N/A',
+    patrimonio: item.numero_serie || item.patrimonio || 'N/A',
+    numero_serie: item.patrimonio || item.numero_serie || 'N/A',
+  };
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -80,14 +97,11 @@ export default function Dashboard() {
       if (items.length > 0) {
         for (const item of items) {
           const itemId = crypto.randomUUID();
+          const normalizedItem = normalizeImportedItem(item);
           const newItem = {
             id: itemId,
             analysis_id: analysisId,
-            tag: item.tag || 'N/A',
-            descricao: item.descricao || 'N/A',
-            modelo: item.modelo || 'N/A',
-            patrimonio: item.patrimonio || 'N/A',
-            numero_serie: item.numero_serie || 'N/A',
+            ...normalizedItem,
             status: 'Pendente',
             created_at: now,
             updated_at: now

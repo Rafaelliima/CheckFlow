@@ -15,16 +15,18 @@ export function Header({ title, children }: { title: string, children?: React.Re
   return (
     <nav className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 shadow-sm backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
-            <Link to="/dashboard" className="mr-4 flex items-center gap-2 text-blue-400 transition hover:text-cyan-300">
+        <div className="flex min-h-16 flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+          <div className="flex min-w-0 items-center">
+            <Link to="/dashboard" className="mr-3 flex shrink-0 items-center gap-2 text-blue-400 transition hover:text-cyan-300 sm:mr-4">
               <Home className="h-5 w-5" />
               <span className="hidden font-medium sm:inline">Início</span>
             </Link>
-            <h1 className="max-w-[200px] truncate text-lg font-bold text-slate-100 sm:max-w-md sm:text-xl">{title}</h1>
+            <h1 className="min-w-0 flex-1 break-words text-base font-bold leading-5 text-slate-100 sm:max-w-md sm:truncate sm:text-xl sm:leading-none">
+              {title}
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end sm:gap-4">
             {children}
             <button
               onClick={handleLogout}
@@ -35,7 +37,7 @@ export function Header({ title, children }: { title: string, children?: React.Re
             </button>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-cyan-300 sm:hidden"
+              className="ml-auto rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-cyan-300 sm:hidden"
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>

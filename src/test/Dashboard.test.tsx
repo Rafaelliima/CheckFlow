@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import Dashboard from '../../src/pages/Dashboard';
+import Dashboard, { normalizeImportedItem } from '../../src/pages/Dashboard';
 import { queueMutation } from '../../src/lib/sync';
 
 vi.mock('../../src/lib/pdf', () => ({
@@ -75,5 +75,22 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(queueMutation).toHaveBeenCalledWith('DELETE', 'analyses', '1', expect.any(Object));
     });
+  });
+});
+
+
+it('normaliza importação trocando patrimônio e número de série para o formato esperado', () => {
+  expect(normalizeImportedItem({
+    tag: 'T-01',
+    descricao: 'Equipamento',
+    modelo: 'M-01',
+    patrimonio: 'NS-123',
+    numero_serie: 'PAT-999',
+  })).toEqual({
+    tag: 'T-01',
+    descricao: 'Equipamento',
+    modelo: 'M-01',
+    patrimonio: 'PAT-999',
+    numero_serie: 'NS-123',
   });
 });
