@@ -10,13 +10,14 @@ import { AnalysisPDF } from '../components/AnalysisPDF';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
+import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
 import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Users } from 'lucide-react';
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  useRealtimeSync(id);
+  const { status: realtimeStatus, retryCount } = useRealtimeSync(id);
 
   const analysis = useLiveQuery(() => id ? db.analyses.get(id) : undefined, [id]);
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
@@ -174,6 +175,7 @@ export default function AnalysisDetail() {
           <span className="hidden sm:inline">Colaborativo — todos veem esta análise</span>
           <span className="sm:hidden">Colaborativo</span>
         </div>
+        <RealtimeStatusIndicator status={realtimeStatus} retryCount={retryCount} />
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
           fileName={`relatorio-${analysis.id}.pdf`}

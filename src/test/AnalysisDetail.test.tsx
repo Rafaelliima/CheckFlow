@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import AnalysisDetail from '../../src/pages/AnalysisDetail';
 import { queueMutation } from '../../src/lib/sync';
@@ -17,7 +17,9 @@ vi.mock('../../src/lib/supabase', () => ({
     channel: vi.fn().mockReturnValue({
       on: vi.fn().mockReturnValue({
         on: vi.fn().mockReturnValue({
-          subscribe: vi.fn(),
+          subscribe: vi.fn((callback?: (status: string) => void) => {
+            callback?.('SUBSCRIBED');
+          }),
         }),
       }),
     }),
@@ -58,7 +60,7 @@ describe('AnalysisDetail', () => {
     vi.clearAllMocks();
   });
 
-  it('renderiza tabela com itens e indicador de colaboração', async () => {
+  it('renderiza tabela com itens, indicador de colaboração e status do realtime', async () => {
     render(
       <BrowserRouter>
         <AnalysisDetail />
@@ -73,6 +75,9 @@ describe('AnalysisDetail', () => {
 
     const collabIndicators = await screen.findAllByText(/Colaborativo/i);
     expect(collabIndicators[0]).toBeInTheDocument();
+
+    const realtimeIndicators = await screen.findAllByText('Realtime conectado');
+    expect(realtimeIndicators[0]).toBeInTheDocument();
   });
 
   it('botão de editar status altera valor', async () => {
@@ -114,9 +119,9 @@ describe('AnalysisDetail', () => {
     const saveBtn = await screen.findByText('Salvar Notas');
     fireEvent.click(saveBtn);
 
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(queueMutation).toHaveBeenCalledWith('UPDATE', 'analyses', '1', expect.objectContaining({ notes: 'Novas notas' }));
+    await waitFor(() => {
+      expect(queueMutation).toHaveBeenCalledWith('UPDATE', 'analyses', '1', expect.objectContaining({ notes: 'Novas notas' }));
+    });
   });
 
   it('filtra itens na barra de pesquisa', async () => {

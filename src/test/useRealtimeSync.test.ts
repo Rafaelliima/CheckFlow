@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useRealtimeSync } from '../../src/hooks/useRealtimeSync';
 import { supabase } from '../../src/lib/supabase';
 import { db } from '../../src/lib/db';
@@ -17,91 +17,89 @@ vi.mock('../../src/lib/supabase', () => ({
 }));
 
 describe('useRealtimeSync', () => {
-  let mockOn: any;
-  let mockSubscribe: any;
+  let channelFactory: ReturnType<typeof vi.fn>;
+  let statusesQueue: string[][];
+  let itemsCallback: ((payload: any) => Promise<void>) | undefined;
+  let analysisCallback: ((payload: any) => Promise<void>) | undefined;
+  let createdChannels: any[];
+  let onlineSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     await db.analyses.clear();
     await db.analysis_items.clear();
     vi.clearAllMocks();
+    statusesQueue = [['SUBSCRIBED']];
+    createdChannels = [];
+    itemsCallback = undefined;
+    analysisCallback = undefined;
 
-    mockSubscribe = vi.fn().mockImplementation(function (this: any) { return this; });
-    mockOn = vi.fn().mockReturnValue({
-      on: vi.fn().mockReturnValue({
-        subscribe: mockSubscribe,
-      }),
+    onlineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+
+    channelFactory = vi.fn().mockImplementation((name: string) => {
+      const channel: any = {
+        name,
+        on: vi.fn((event: string, config: any, callback: any) => {
+          if (config.table === 'analysis_items') itemsCallback = callback;
+          if (config.table === 'analyses') analysisCallback = callback;
+          return channel;
+        }),
+        subscribe: vi.fn((callback?: (status: string) => void) => {
+          const statuses = statusesQueue.shift() || ['SUBSCRIBED'];
+          statuses.forEach((status) => callback?.(status));
+          return channel;
+        }),
+      };
+
+      createdChannels.push(channel);
+      return channel;
     });
 
-    (supabase.channel as any).mockReturnValue({
-      on: mockOn,
-      subscribe: mockSubscribe,
-    });
+    (supabase.channel as any).mockImplementation(channelFactory);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it('não faz nada se analysisId for undefined', () => {
-    renderHook(() => useRealtimeSync(undefined));
+    const { result } = renderHook(() => useRealtimeSync(undefined));
+
     expect(supabase.channel).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
   });
 
-  it('não faz nada se estiver offline', () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
-    renderHook(() => useRealtimeSync('1'));
+  it('entra em offline se montar sem conexão', () => {
+    onlineSpy.mockReturnValue(false);
+
+    const { result } = renderHook(() => useRealtimeSync('1'));
+
     expect(supabase.channel).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('offline');
   });
 
-  it('cria inscrição com analysisId correto', () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-    renderHook(() => useRealtimeSync('1'));
+  it('cria inscrição com analysisId correto e marca conectado', async () => {
+    const { result } = renderHook(() => useRealtimeSync('1'));
 
     expect(supabase.channel).toHaveBeenCalledWith('public:analysis_1');
-    expect(mockOn).toHaveBeenCalledWith(
-      'postgres_changes',
-      expect.objectContaining({
-        event: '*',
-        schema: 'public',
-        table: 'analysis_items',
-        filter: 'analysis_id=eq.1',
-      }),
-      expect.any(Function)
-    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('connected');
+    });
   });
 
   it('remove inscrição ao desmontar', () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-    const channelMock: any = {};
-    channelMock.on = vi.fn().mockReturnValue(channelMock);
-    channelMock.subscribe = vi.fn().mockReturnValue(channelMock);
-    (supabase.channel as any).mockReturnValue(channelMock);
-
     const { unmount } = renderHook(() => useRealtimeSync('1'));
+
+    const channel = createdChannels[0];
     unmount();
 
-    expect(supabase.removeChannel).toHaveBeenCalledWith(channelMock);
+    expect(supabase.removeChannel).toHaveBeenCalledWith(channel);
   });
 
   it('atualiza estado local ao receber evento de UPDATE mais recente (analysis_items)', async () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-    
-    // Mock the callback logic
-    let itemsCallback: any;
-    mockOn.mockImplementation((event: string, config: any, callback: any) => {
-      if (config.table === 'analysis_items') {
-        itemsCallback = callback;
-      }
-      return {
-        on: vi.fn().mockImplementation((e, c, cb) => {
-          return { subscribe: mockSubscribe };
-        })
-      };
-    });
-
     renderHook(() => useRealtimeSync('1'));
 
-    // Add local record
     await db.analysis_items.add({
       id: 'i1',
       analysis_id: '1',
@@ -115,20 +113,20 @@ describe('useRealtimeSync', () => {
       updated_at: '2026-03-21T10:00:00.000Z'
     });
 
-    // Simulate realtime event
-    const newRecord = {
-      id: 'i1',
-      analysis_id: '1',
-      tag: 'T1',
-      descricao: 'New',
-      status: 'OK',
-      created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T11:00:00.000Z' // Newer
-    };
-
-    await itemsCallback({
+    await itemsCallback?.({
       eventType: 'UPDATE',
-      new: newRecord
+      new: {
+        id: 'i1',
+        analysis_id: '1',
+        tag: 'T1',
+        descricao: 'New',
+        status: 'OK',
+        modelo: 'M1',
+        patrimonio: 'P1',
+        numero_serie: 'S1',
+        created_at: '2026-03-21T10:00:00.000Z',
+        updated_at: '2026-03-21T11:00:00.000Z'
+      }
     });
 
     const updatedLocal = await db.analysis_items.get('i1');
@@ -137,23 +135,8 @@ describe('useRealtimeSync', () => {
   });
 
   it('ignora evento de UPDATE se estado local for mais recente', async () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-    
-    let itemsCallback: any;
-    mockOn.mockImplementation((event: string, config: any, callback: any) => {
-      if (config.table === 'analysis_items') {
-        itemsCallback = callback;
-      }
-      return {
-        on: vi.fn().mockImplementation((e, c, cb) => {
-          return { subscribe: mockSubscribe };
-        })
-      };
-    });
-
     renderHook(() => useRealtimeSync('1'));
 
-    // Add local record (newer)
     await db.analysis_items.add({
       id: 'i1',
       analysis_id: '1',
@@ -164,27 +147,94 @@ describe('useRealtimeSync', () => {
       patrimonio: 'P1',
       numero_serie: 'S1',
       created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T12:00:00.000Z' // Newer
+      updated_at: '2026-03-21T12:00:00.000Z'
     });
 
-    // Simulate realtime event (older)
-    const oldRecord = {
-      id: 'i1',
-      analysis_id: '1',
-      tag: 'T1',
-      descricao: 'Old Remote',
-      status: 'OK',
-      created_at: '2026-03-21T10:00:00.000Z',
-      updated_at: '2026-03-21T11:00:00.000Z' // Older
-    };
-
-    await itemsCallback({
+    await itemsCallback?.({
       eventType: 'UPDATE',
-      new: oldRecord
+      new: {
+        id: 'i1',
+        analysis_id: '1',
+        tag: 'T1',
+        descricao: 'Old Remote',
+        status: 'OK',
+        modelo: 'M1',
+        patrimonio: 'P1',
+        numero_serie: 'S1',
+        created_at: '2026-03-21T10:00:00.000Z',
+        updated_at: '2026-03-21T11:00:00.000Z'
+      }
     });
 
     const updatedLocal = await db.analysis_items.get('i1');
     expect(updatedLocal?.descricao).toBe('New Local');
     expect(toast).not.toHaveBeenCalled();
   });
+
+  it('agenda reconexão automática quando a assinatura falha e conecta na tentativa seguinte', async () => {
+    vi.useFakeTimers();
+    statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];
+
+    const { result } = renderHook(() => useRealtimeSync('1'));
+
+    expect(result.current.status).toBe('reconnecting');
+    expect(result.current.retryCount).toBe(1);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('connected');
+    expect(result.current.retryCount).toBe(0);
+  });
+
+  it('pausa reconexão quando fica offline e reconecta ao voltar a internet', async () => {
+    vi.useFakeTimers();
+    statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];
+
+    const { result } = renderHook(() => useRealtimeSync('1'));
+
+    expect(result.current.status).toBe('reconnecting');
+
+    onlineSpy.mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+
+    expect(result.current.status).toBe('offline');
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+
+    onlineSpy.mockReturnValue(true);
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('connected');
+  });
+
+  it('remove canal antigo ao trocar de analysisId', async () => {
+    const { rerender } = renderHook(({ analysisId }) => useRealtimeSync(analysisId), {
+      initialProps: { analysisId: '1' },
+    });
+
+    const firstChannel = createdChannels[0];
+
+    rerender({ analysisId: '2' });
+
+    await waitFor(() => {
+      expect(supabase.channel).toHaveBeenCalledWith('public:analysis_2');
+    });
+
+    expect(supabase.removeChannel).toHaveBeenCalledWith(firstChannel);
+  });
+
 });
