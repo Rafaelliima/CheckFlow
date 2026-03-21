@@ -8,6 +8,7 @@ import { processQueue } from './lib/sync';
 import { Toaster } from 'react-hot-toast';
 import { DebugLogger } from './components/DebugLogger';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ThemeProvider } from './components/ThemeProvider';
 import { useAuth } from './hooks/useAuth';
 import { addDebugLog } from './lib/debug';
 
@@ -16,6 +17,7 @@ export default function App() {
 
   useEffect(() => {
     addDebugLog('info', 'Iniciando app');
+    document.title = 'CheckFlow';
 
     // Process queue on mount
     processQueue();
@@ -38,7 +40,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <ThemeProvider>
       <DebugLogger />
       <Toaster position="top-right" />
       <ErrorBoundary>
@@ -63,6 +65,6 @@ export default function App() {
           </Routes>
         </Router>
       </ErrorBoundary>
-    </>
+    </ThemeProvider>
   );
 }

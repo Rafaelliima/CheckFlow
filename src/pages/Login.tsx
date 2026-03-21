@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Moon, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function Login() {
@@ -21,7 +22,7 @@ export default function Login() {
       });
 
       if (error) throw error;
-      
+
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
@@ -31,67 +32,106 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            RondaAI
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Faça login na sua conta
-          </p>
+    <div className="min-h-screen bg-slate-100 px-4 py-12 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-6xl items-center justify-center">
+        <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/60 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="hidden flex-col justify-between bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 p-10 text-white lg:flex">
+            <div>
+              <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur">
+                <ShieldCheck className="h-4 w-4" />
+                CheckFlow
+              </div>
+              <h1 className="max-w-md text-4xl font-bold leading-tight">
+                Inspeções organizadas com fluxo rápido, claro e auditável.
+              </h1>
+              <p className="mt-4 max-w-lg text-sm leading-6 text-blue-50/90">
+                Centralize análises, acompanhe divergências e continue operando mesmo offline com uma experiência otimizada para campo e escritório.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/15 bg-slate-950/15 p-5 backdrop-blur-sm">
+              <div className="flex items-center gap-3 text-sm font-medium">
+                <Moon className="h-4 w-4" />
+                Tema escuro automático e persistente
+              </div>
+              <p className="mt-2 text-sm text-blue-50/85">
+                O CheckFlow respeita sua preferência salva e acompanha o tema do sistema quando nenhuma escolha manual foi definida.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-8 sm:p-10">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.25em] text-indigo-600 dark:text-cyan-300">
+                CheckFlow
+              </p>
+              <h2 className="mt-4 text-3xl font-extrabold text-slate-900 dark:text-slate-50">
+                Entrar na plataforma
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Faça login para acessar análises, itens auditados e sincronização em tempo real.
+              </p>
+            </div>
+            <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                  {error}
+                </div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="email-address" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Email
+                  </label>
+                  <input
+                    id="email-address"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                    placeholder="voce@empresa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Senha
+                  </label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                    placeholder="Digite sua senha"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex min-h-[48px] w-full items-center justify-center rounded-xl border border-transparent bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:focus:ring-offset-slate-900"
+                >
+                  {loading ? 'Entrando...' : 'Entrar'}
+                </button>
+              </div>
+
+              <div className="text-center text-sm text-slate-600 dark:text-slate-400">
+                Não tem uma conta?{' '}
+                <Link to="/register" className="font-semibold text-indigo-600 transition hover:text-indigo-500 dark:text-cyan-300 dark:hover:text-cyan-200">
+                  Cadastre-se
+                </Link>
+              </div>
+            </form>
+          </div>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          {error && (
-            <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm text-center">
-              {error}
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              {loading ? 'Entrando...' : 'Entrar'}
-            </button>
-          </div>
-
-          <div className="text-sm text-center mt-4">
-            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Não tem uma conta? Cadastre-se
-            </Link>
-          </div>
-        </form>
       </div>
     </div>
   );
