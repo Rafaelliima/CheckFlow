@@ -8,7 +8,6 @@ import { processQueue } from './lib/sync';
 import { Toaster } from 'react-hot-toast';
 import { DebugLogger } from './components/DebugLogger';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ThemeProvider } from './components/ThemeProvider';
 import { useAuth } from './hooks/useAuth';
 import { addDebugLog } from './lib/debug';
 
@@ -19,52 +18,35 @@ export default function App() {
     addDebugLog('info', 'Iniciando app');
     document.title = 'CheckFlow';
 
-    // Process queue on mount
     processQueue();
 
-    // Process queue when coming back online
     const handleOnline = () => {
       addDebugLog('info', 'App voltou a ficar online. Processando fila');
       processQueue();
     };
 
     window.addEventListener('online', handleOnline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
+    return () => window.removeEventListener('online', handleOnline);
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">Carregando...</div>;
   }
 
   return (
-    <ThemeProvider>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       <DebugLogger />
       <Toaster position="top-right" />
       <ErrorBoundary>
         <Router>
           <Routes>
-            <Route 
-              path="/" 
-              element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
-            />
-            <Route 
-              path="/register" 
-              element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
-            />
-            <Route 
-              path="/dashboard" 
-              element={session ? <Dashboard /> : <Navigate to="/" replace />} 
-            />
-            <Route 
-              path="/analysis/:id" 
-              element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} 
-            />
+            <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
+            <Route path="/register" element={session ? <Navigate to="/dashboard" replace /> : <Register />} />
+            <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/" replace />} />
+            <Route path="/analysis/:id" element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} />
           </Routes>
         </Router>
       </ErrorBoundary>
-    </ThemeProvider>
+    </div>
   );
 }

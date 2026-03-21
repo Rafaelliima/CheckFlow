@@ -11,7 +11,7 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
-import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
+import { Search, X, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Trash2 } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
 
 function normalizeSearchValue(value: string | null | undefined) {
@@ -41,15 +41,7 @@ export default function AnalysisDetail() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tag, setTag] = useState('');
-  const [descricao, setDescricao] = useState('');
-  const [modelo, setModelo] = useState('');
-  const [patrimonio, setPatrimonio] = useState('');
-  const [numeroSerie, setNumeroSerie] = useState('');
-  const [status, setStatus] = useState('Pendente');
-  const [adding, setAdding] = useState(false);
+  const [deletingAnalysis, setDeletingAnalysis] = useState(false);
 
   // Notes state
   const [notes, setNotes] = useState('');
@@ -76,41 +68,25 @@ export default function AnalysisDetail() {
     addDebugLog('info', 'Renderizando botão PDF', { analysisId: analysis.id });
   }, [analysis?.id]);
 
-  const handleAddItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tag.trim() || !id) return;
-    
-    setAdding(true);
+  const handleDeleteAnalysis = async () => {
+    if (!id) return;
+
+    const confirmed = window.confirm('Deseja apagar esta análise e todos os itens vinculados?');
+    if (!confirmed) return;
+
+    setDeletingAnalysis(true);
     try {
-      const itemId = crypto.randomUUID();
-      const now = new Date().toISOString();
-      const newItem = {
-        id: itemId,
-        analysis_id: id,
-        tag,
-        descricao: descricao || 'N/A',
-        modelo: modelo || 'N/A',
-        patrimonio: patrimonio || 'N/A',
-        numero_serie: numeroSerie || 'N/A',
-        status,
-        created_at: now,
-        updated_at: now
-      };
-      
-      await queueMutation('INSERT', 'analysis_items', itemId, newItem);
-      
-      setTag('');
-      setDescricao('');
-      setModelo('');
-      setPatrimonio('');
-      setNumeroSerie('');
-      setStatus('Pendente');
-      setIsModalOpen(false);
+      for (const item of items) {
+        await queueMutation('DELETE', 'analysis_items', item.id, item);
+      }
+
+      await queueMutation('DELETE', 'analyses', id, analysis);
+      navigate('/dashboard');
     } catch (error) {
-      console.error('Error adding item:', error);
-      alert('Erro ao adicionar item.');
+      console.error('Error deleting analysis:', error);
+      alert('Erro ao apagar análise.');
     } finally {
-      setAdding(false);
+      setDeletingAnalysis(false);
     }
   };
 
@@ -192,10 +168,20 @@ export default function AnalysisDetail() {
   const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-slate-950 pb-24 text-slate-100">
       <OfflineIndicator />
       <Header title={analysis.file_name || 'Análise'}>
         <RealtimeStatusIndicator status={realtimeStatus} />
+        <button
+          type="button"
+          onClick={handleDeleteAnalysis}
+          disabled={deletingAnalysis}
+          className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          <span className="hidden sm:inline">{deletingAnalysis ? 'Apagando...' : 'Apagar análise'}</span>
+          <span className="sm:hidden">Apagar</span>
+        </button>
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
           fileName={`relatorio-${analysis.id}.pdf`}
@@ -216,8 +202,8 @@ export default function AnalysisDetail() {
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Progresso da Análise</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{completedItems} de {totalItems} itens verificados</p>
+              <h2 className="text-lg font-semibold text-slate-100">Progresso da Análise</h2>
+              <p className="text-sm text-slate-400">{completedItems} de {totalItems} itens verificados</p>
             </div>
             <div className="text-left sm:text-right">
               <span className="text-3xl font-bold text-indigo-600 dark:text-cyan-300">{progressPercent}%</span>
@@ -232,26 +218,26 @@ export default function AnalysisDetail() {
         <div className="mb-6">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <Search className="h-5 w-5 text-slate-500" />
             </div>
             <input
               type="text"
               placeholder="Buscar por tag, descrição, patrimônio ou nº série..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-10 leading-5 text-slate-900 placeholder-slate-500 transition-colors focus:border-indigo-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 sm:py-2 sm:text-sm"
+              className="block w-full rounded-lg border border-slate-700 bg-slate-900 py-3 pl-10 pr-10 leading-5 text-slate-100 placeholder-slate-500 transition focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-500 sm:py-2 sm:text-sm"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 flex min-w-[44px] items-center justify-center pr-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                className="absolute inset-y-0 right-0 flex min-w-[44px] items-center justify-center pr-3 text-slate-500 hover:text-slate-300"
               >
                 <X className="h-5 w-5" />
               </button>
             )}
           </div>
           {searchQuery && (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-sm text-slate-400">
               {filteredItems.length} resultado{filteredItems.length !== 1 ? 's' : ''} encontrado{filteredItems.length !== 1 ? 's' : ''}
             </p>
           )}
@@ -260,19 +246,19 @@ export default function AnalysisDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Notes */}
           <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Notas Gerais</h2>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-sm sm:p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-100">Notas Gerais</h2>
               <textarea
                 rows={4}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="block w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm transition-colors focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
+                className="block w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 shadow-sm transition focus:border-cyan-400 focus:outline-none focus:ring-cyan-500 sm:text-sm"
                 placeholder="Observações gerais sobre esta análise..."
               />
               <button
                 onClick={handleSaveNotes}
                 disabled={savingNotes}
-                className="mt-4 flex min-h-[44px] w-full justify-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800 sm:py-2"
+                className="mt-4 flex min-h-[44px] w-full justify-center rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-medium text-slate-100 shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:py-2"
               >
                 {savingNotes ? 'Salvando...' : 'Salvar Notas'}
               </button>
@@ -281,32 +267,32 @@ export default function AnalysisDetail() {
 
           {/* List of items */}
           <div className="lg:col-span-2 order-1 lg:order-2">
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/80 sm:px-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itens da Análise</h3>
+            <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/70 px-4 py-4 sm:px-6">
+                <h3 className="text-lg font-semibold text-slate-100">Itens da Análise</h3>
               </div>
               
               {/* Desktop Table View */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
-                  <thead className="bg-slate-50 dark:bg-slate-900/80">
+                <table className="min-w-full divide-y divide-slate-800">
+                  <thead className="bg-slate-950/70">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Tag</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Descrição</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Ações</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Tag</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Descrição</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Status</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
                           {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
                         </td>
                       </tr>
                     ) : (
                       filteredItems.map((item) => (
-                        <tr key={item.id} className={item.status === 'Pendente' ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                        <tr key={item.id} className={item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}>
                           {editingItemId === item.id ? (
                             <td colSpan={4} className="px-6 py-4">
                               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -342,7 +328,7 @@ export default function AnalysisDetail() {
                             </td>
                           ) : (
                             <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-100">
                                 <div className="flex items-center">
                                   {item.tag}
                                   <button onClick={() => startEditing(item)} className="ml-2 p-1 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
@@ -350,7 +336,7 @@ export default function AnalysisDetail() {
                                   </button>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                              <td className="px-6 py-4 text-sm text-slate-400">
                                 {item.descricao || 'Sem descrição'}
                                 {(item.modelo !== 'N/A' || item.patrimonio !== 'N/A') && (
                                   <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -403,12 +389,12 @@ export default function AnalysisDetail() {
               {/* Mobile Card View */}
               <div className="divide-y divide-slate-200 dark:divide-slate-800 md:hidden">
                 {filteredItems.length === 0 ? (
-                  <div className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                  <div className="px-4 py-12 text-center text-slate-400">
                     {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
                   </div>
                 ) : (
                   filteredItems.map((item) => (
-                    <div key={item.id} className={`p-4 ${item.status === 'Pendente' ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                    <div key={item.id} className={`p-4 ${item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}`}>
                       {editingItemId === item.id ? (
                         <div className="space-y-4">
                           <div>
@@ -446,7 +432,7 @@ export default function AnalysisDetail() {
                         <div>
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-slate-900 dark:text-slate-100">{item.tag || 'Sem tag'}</span>
+                              <span className="text-base font-bold text-slate-100">{item.tag || 'Sem tag'}</span>
                               <button onClick={() => startEditing(item)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -458,8 +444,8 @@ export default function AnalysisDetail() {
                               {item.status}
                             </span>
                           </div>
-                          <p className="mb-2 text-sm text-slate-700 dark:text-slate-300">{item.descricao || 'Sem descrição'}</p>
-                          <div className="mb-4 grid grid-cols-2 gap-2 rounded border border-slate-100 bg-white p-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
+                          <p className="mb-2 text-sm text-slate-300">{item.descricao || 'Sem descrição'}</p>
+                          <div className="mb-4 grid grid-cols-2 gap-2 rounded border border-slate-800 bg-slate-950 p-2 text-xs text-slate-400">
                             <div><span className="font-medium">Mod:</span> {item.modelo || 'N/A'}</div>
                             <div><span className="font-medium">Pat:</span> {item.patrimonio || 'N/A'}</div>
                             <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie || 'N/A'}</div>
@@ -495,125 +481,6 @@ export default function AnalysisDetail() {
         </div>
       </main>
 
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform hover:scale-105 z-40"
-        aria-label="Adicionar Item"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
-
-      {/* Add Item Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-slate-950/70 transition-opacity" aria-hidden="true" onClick={() => setIsModalOpen(false)}></div>
-
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block w-full transform overflow-hidden rounded-t-2xl bg-white text-left shadow-xl transition-all dark:bg-slate-900 sm:my-8 sm:max-w-lg sm:align-middle sm:rounded-2xl">
-              <div className="bg-white px-4 pt-5 pb-4 dark:bg-slate-900 sm:p-6 sm:pb-4">
-                <div className="flex justify-between items-center mb-5">
-                  <h3 className="text-lg leading-6 font-bold text-slate-900 dark:text-slate-100" id="modal-title">
-                    Adicionar Novo Item
-                  </h3>
-                  <button onClick={() => setIsModalOpen(false)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-slate-500 dark:text-slate-500 dark:hover:text-slate-300">
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-                <form id="add-item-form" onSubmit={handleAddItem} className="space-y-4">
-                  <div>
-                    <label htmlFor="tag" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Tag *</label>
-                    <input
-                      type="text"
-                      id="tag"
-                      value={tag}
-                      onChange={(e) => setTag(e.target.value)}
-                      required
-                      className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
-                      placeholder="Ex: EXT-01"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="descricao" className="block text-sm font-medium text-slate-700">Descrição</label>
-                    <input
-                      type="text"
-                      id="descricao"
-                      value={descricao}
-                      onChange={(e) => setDescricao(e.target.value)}
-                      className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
-                      placeholder="Ex: Extintor de Incêndio"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="modelo" className="block text-sm font-medium text-slate-700">Modelo</label>
-                      <input
-                        type="text"
-                        id="modelo"
-                        value={modelo}
-                        onChange={(e) => setModelo(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="patrimonio" className="block text-sm font-medium text-slate-700">Patrimônio</label>
-                      <input
-                        type="text"
-                        id="patrimonio"
-                        value={patrimonio}
-                        onChange={(e) => setPatrimonio(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="numeroSerie" className="block text-sm font-medium text-slate-700">Número de Série</label>
-                    <input
-                      type="text"
-                      id="numeroSerie"
-                      value={numeroSerie}
-                      onChange={(e) => setNumeroSerie(e.target.value)}
-                      className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-slate-700">Status Inicial</label>
-                    <select
-                      id="status"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      className="mt-1 block w-full bg-white border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    >
-                      <option value="Pendente">Pendente</option>
-                      <option value="OK">OK</option>
-                      <option value="Divergência">Divergência</option>
-                    </select>
-                  </div>
-                </form>
-              </div>
-              <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 dark:bg-slate-950/80 sm:flex-row-reverse sm:px-6">
-                <button
-                  type="submit"
-                  form="add-item-form"
-                  disabled={adding}
-                  className="flex min-h-[44px] w-full justify-center rounded-lg border border-transparent bg-indigo-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400 sm:w-auto sm:py-2 sm:text-sm"
-                >
-                  {adding ? 'Salvando...' : 'Salvar Item'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex min-h-[44px] w-full justify-center rounded-lg border border-slate-300 bg-white px-6 py-3 text-base font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-auto sm:py-2 sm:text-sm"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

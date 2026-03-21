@@ -9,12 +9,12 @@ import { db } from '../lib/db';
 import { pullData, queueMutation } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { Clock, Plus, Upload, User } from 'lucide-react';
+import { Clock, Trash2, Upload, User } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState<any>(null);
@@ -107,31 +107,25 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateAnalysis = async () => {
-    if (!user) return;
-    setCreating(true);
-    
-    const analysisId = crypto.randomUUID();
-    const fileName = `Análise Manual - ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`;
-    const now = new Date().toISOString();
-    
-    const newAnalysis = {
-      id: analysisId,
-      user_id: user.id,
-      created_by: user.id,
-      created_by_email: user.email,
-      file_name: fileName,
-      created_at: now,
-      updated_at: now
-    };
-    
+  const handleDeleteAnalysis = async (analysisId: string) => {
+    const confirmed = window.confirm('Deseja apagar esta análise e todos os itens vinculados?');
+    if (!confirmed) return;
+
+    setDeletingAnalysisId(analysisId);
     try {
-      await queueMutation('INSERT', 'analyses', analysisId, newAnalysis);
-      navigate(`/analysis/${analysisId}`);
+      const selectedAnalysis = analyses.find((analysis) => analysis.id === analysisId);
+      const relatedItems = selectedAnalysis?.analysis_items || [];
+
+      for (const item of relatedItems) {
+        await queueMutation('DELETE', 'analysis_items', item.id, item);
+      }
+
+      await queueMutation('DELETE', 'analyses', analysisId, selectedAnalysis || { id: analysisId });
     } catch (error) {
-      console.error('Error creating analysis:', error);
-      alert('Erro ao criar nova análise.');
-      setCreating(false);
+      console.error('Error deleting analysis:', error);
+      alert('Erro ao apagar análise.');
+    } finally {
+      setDeletingAnalysisId(null);
     }
   };
 
@@ -145,20 +139,20 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100 sm:pb-0">
+    <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
       <OfflineIndicator />
       <Header title="CheckFlow Dashboard" />
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-slate-100">Minhas Análises</h2>
+          <h2 className="text-xl font-semibold text-slate-100 sm:text-2xl">Minhas Análises</h2>
           <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
             <input
               type="text"
               placeholder="Buscar análise..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base shadow-sm transition-colors focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 sm:w-64 sm:py-2 sm:text-sm"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-base text-slate-100 shadow-sm transition focus:border-cyan-400 focus:ring-cyan-500 sm:w-64 sm:py-2 sm:text-sm"
             />
             <div className="flex gap-2 w-full sm:w-auto">
               <input 
@@ -170,8 +164,8 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={!!uploadStep || creating}
-                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:flex-none sm:py-2"
+                disabled={!!uploadStep || !!deletingAnalysisId}
+                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:flex-none sm:py-2"
               >
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">
@@ -181,23 +175,14 @@ export default function Dashboard() {
                 </span>
                 <span className="sm:hidden">PDF</span>
               </button>
-              <button
-                onClick={handleCreateAnalysis}
-                disabled={creating || !!uploadStep}
-                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-transparent bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400 sm:flex-none sm:py-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">{creating ? 'Criando...' : 'Nova Análise'}</span>
-                <span className="sm:hidden">Nova</span>
-              </button>
             </div>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900">
-          <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+          <ul className="divide-y divide-slate-800">
             {filteredAnalyses.length === 0 ? (
-              <li className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+              <li className="px-4 py-12 text-center text-slate-400">
                 Nenhuma análise encontrada.
               </li>
             ) : (
@@ -208,41 +193,53 @@ export default function Dashboard() {
 
                 return (
                   <li key={analysis.id}>
-                    <Link to={`/analysis/${analysis.id}`} className="block transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                      <div className="px-4 py-4 sm:px-6">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="truncate pr-4 text-base font-medium text-indigo-600 dark:text-cyan-300">
-                            {analysis.file_name || 'Análise sem nome'}
-                          </p>
-                          <div className="flex-shrink-0">
-                            <p className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5 ${progressPercent === 100 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'}`}>
-                              {progressPercent}%
+                    <div className="px-4 py-4 sm:px-6">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <Link to={`/analysis/${analysis.id}`} className="min-w-0 flex-1">
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="truncate pr-4 text-base font-medium text-cyan-300">
+                              {analysis.file_name || 'Análise sem nome'}
                             </p>
-                          </div>
-                        </div>
-                        <div className="sm:flex sm:justify-between">
-                          <div className="sm:flex flex-col gap-1">
-                            <p className="flex items-center text-sm text-slate-500 dark:text-slate-400">
-                              <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />
-                              {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                            <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                              <User className="w-3 h-3" />
-                              <span>{analysis.created_by_email || 'Usuário'}</span>
+                            <div className="flex-shrink-0">
+                              <p className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5 ${progressPercent === 100 ? 'bg-emerald-950/40 text-emerald-300' : 'bg-cyan-950/50 text-cyan-200'}`}>
+                                {progressPercent}%
+                              </p>
                             </div>
                           </div>
-                          <div className="mt-2 flex items-center text-sm text-slate-500 dark:text-slate-400 sm:mt-0">
-                            <p>
-                              {completedItems} de {totalItems} itens verificados
-                            </p>
+
+                          <div className="sm:flex sm:justify-between">
+                            <div className="sm:flex flex-col gap-1">
+                              <p className="flex items-center text-sm text-slate-400">
+                                <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+                                {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                                <User className="h-3 w-3" />
+                                <span>{analysis.created_by_email || 'Usuário'}</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center text-sm text-slate-400 sm:mt-0">
+                              <p>{completedItems} de {totalItems} itens verificados</p>
+                            </div>
                           </div>
-                        </div>
-                        {/* Progress Bar */}
-                        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progressPercent}%` }}></div>
-                        </div>
+
+                          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                            <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${progressPercent}%` }}></div>
+                          </div>
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAnalysis(analysis.id)}
+                          disabled={deletingAnalysisId === analysis.id}
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
+                          aria-label={`Apagar análise ${analysis.file_name || analysis.id}`}
+                          title="Apagar análise"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                    </Link>
+                    </div>
                   </li>
                 );
               })

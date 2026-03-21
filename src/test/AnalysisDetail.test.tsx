@@ -202,22 +202,15 @@ describe('AnalysisDetail', () => {
     expect(emptyStates[0]).toBeInTheDocument();
   });
 
-  it('abre e fecha o modal de adicionar item', async () => {
+  it('não exibe ação para adicionar item manualmente', async () => {
     render(
       <BrowserRouter>
         <AnalysisDetail />
       </BrowserRouter>
     );
 
-    const fab = await screen.findByLabelText('Adicionar Item');
-    fireEvent.click(fab);
-
-    const modalTitle = await screen.findByText('Adicionar Novo Item');
-    expect(modalTitle).toBeInTheDocument();
-
-    const closeBtn = await screen.findByText('Cancelar');
-    fireEvent.click(closeBtn);
-
+    expect(await screen.findByText('Exportar PDF')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Adicionar Item')).not.toBeInTheDocument();
     expect(screen.queryByText('Adicionar Novo Item')).not.toBeInTheDocument();
   });
 });

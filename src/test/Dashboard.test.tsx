@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Dashboard from '../../src/pages/Dashboard';
 import { queueMutation } from '../../src/lib/sync';
@@ -60,19 +60,20 @@ describe('DashboardPage', () => {
     expect(link.closest('a')).toHaveAttribute('href', '/analysis/1');
   });
 
-  it('botão "Nova Análise" cria registro', async () => {
+  it('permite apagar uma análise existente', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
     render(
       <BrowserRouter>
         <Dashboard />
       </BrowserRouter>
     );
 
-    const btns = await screen.findAllByText('Nova Análise');
-    fireEvent.click(btns[0]);
+    const deleteButton = await screen.findByTitle('Apagar análise');
+    fireEvent.click(deleteButton);
 
-    // Wait for the async operation
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(queueMutation).toHaveBeenCalledWith('INSERT', 'analyses', expect.any(String), expect.any(Object));
+    await waitFor(() => {
+      expect(queueMutation).toHaveBeenCalledWith('DELETE', 'analyses', '1', expect.any(Object));
+    });
   });
 });
