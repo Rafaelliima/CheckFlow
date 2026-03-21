@@ -13,7 +13,16 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('../../src/lib/supabase', () => ({
-  supabase: {},
+  supabase: {
+    channel: vi.fn().mockReturnValue({
+      on: vi.fn().mockReturnValue({
+        on: vi.fn().mockReturnValue({
+          subscribe: vi.fn(),
+        }),
+      }),
+    }),
+    removeChannel: vi.fn(),
+  },
 }));
 
 vi.mock('dexie-react-hooks', () => ({

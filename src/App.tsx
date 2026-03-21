@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AnalysisDetail from './pages/AnalysisDetail';
 import { processQueue } from './lib/sync';
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -45,25 +46,28 @@ export default function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route 
-          path="/" 
-          element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
-        />
-        <Route 
-          path="/register" 
-          element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
-        />
-        <Route 
-          path="/dashboard" 
-          element={session ? <Dashboard /> : <Navigate to="/" replace />} 
-        />
-        <Route 
-          path="/analysis/:id" 
-          element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} 
-        />
-      </Routes>
-    </Router>
+    <>
+      <Toaster position="top-right" />
+      <Router>
+        <Routes>
+          <Route 
+            path="/" 
+            element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
+          />
+          <Route 
+            path="/register" 
+            element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
+          />
+          <Route 
+            path="/dashboard" 
+            element={session ? <Dashboard /> : <Navigate to="/" replace />} 
+          />
+          <Route 
+            path="/analysis/:id" 
+            element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} 
+          />
+        </Routes>
+      </Router>
+    </>
   );
 }

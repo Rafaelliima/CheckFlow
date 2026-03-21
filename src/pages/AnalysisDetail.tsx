@@ -7,11 +7,14 @@ import { db } from '../lib/db';
 import { queueMutation } from '../lib/sync';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { AnalysisPDF } from '../components/AnalysisPDF';
+import { useRealtimeSync } from '../hooks/useRealtimeSync';
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
+  useRealtimeSync(id);
+
   const analysis = useLiveQuery(() => id ? db.analyses.get(id) : undefined, [id]);
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
   
