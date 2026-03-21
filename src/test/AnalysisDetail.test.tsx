@@ -174,6 +174,34 @@ describe('AnalysisDetail', () => {
     expect(afterStatusChange.map((item) => item.tag)).toEqual(['T-01', 'T-02']);
   });
 
+
+  it('não quebra ao filtrar itens com campos opcionais ausentes', async () => {
+    const { useLiveQuery } = await import('dexie-react-hooks');
+    vi.mocked(useLiveQuery).mockImplementation((fn: any, deps: any) => {
+      if (deps && deps[0] === '1' && fn.toString().includes('db.analyses.get')) {
+        return { id: '1', file_name: 'Análise 1', notes: '', created_at: '2026-03-21T10:00:00.000Z' };
+      }
+      if (deps && deps[0] === '1' && fn.toString().includes('db.analysis_items')) {
+        return [
+          { id: 'i1', analysis_id: '1', tag: undefined, descricao: undefined, patrimonio: undefined, numero_serie: undefined, status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z' }
+        ];
+      }
+      return null;
+    });
+
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const searchInput = await screen.findByPlaceholderText(/Buscar por tag/i);
+    fireEvent.change(searchInput, { target: { value: 'qualquer' } });
+
+    const emptyStates = await screen.findAllByText('Nenhum item encontrado para a busca.');
+    expect(emptyStates[0]).toBeInTheDocument();
+  });
+
   it('abre e fecha o modal de adicionar item', async () => {
     render(
       <BrowserRouter>

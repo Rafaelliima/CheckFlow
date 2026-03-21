@@ -139,8 +139,9 @@ export default function Dashboard() {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
 
-  const filteredAnalyses = analyses.filter(a => 
-    a.file_name.toLowerCase().includes(searchQuery.toLowerCase())
+  const normalizedQuery = searchQuery.toLowerCase();
+  const filteredAnalyses = analyses.filter((analysis) =>
+    (analysis.file_name || '').toLowerCase().includes(normalizedQuery)
   );
 
   return (
@@ -211,7 +212,7 @@ export default function Dashboard() {
                       <div className="px-4 py-4 sm:px-6">
                         <div className="flex items-center justify-between mb-2">
                           <p className="truncate pr-4 text-base font-medium text-indigo-600 dark:text-cyan-300">
-                            {analysis.file_name}
+                            {analysis.file_name || 'Análise sem nome'}
                           </p>
                           <div className="flex-shrink-0">
                             <p className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5 ${progressPercent === 100 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'}`}>

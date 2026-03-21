@@ -14,6 +14,10 @@ import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
 import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
 
+function normalizeSearchValue(value: string | null | undefined) {
+  return (value ?? '').toLowerCase();
+}
+
 export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'created_at'>>(items: T[]) {
   const statusPriority = { Pendente: 0, OK: 1, Divergência: 2 } as const;
 
@@ -176,10 +180,10 @@ export default function AnalysisDetail() {
   const filteredItems = sortAnalysisItems(items.filter(item => {
     const q = searchQuery.toLowerCase();
     return (
-      item.tag.toLowerCase().includes(q) ||
-      item.descricao.toLowerCase().includes(q) ||
-      item.patrimonio.toLowerCase().includes(q) ||
-      item.numero_serie.toLowerCase().includes(q)
+      normalizeSearchValue(item.tag).includes(q) ||
+      normalizeSearchValue(item.descricao).includes(q) ||
+      normalizeSearchValue(item.patrimonio).includes(q) ||
+      normalizeSearchValue(item.numero_serie).includes(q)
     );
   }));
 
@@ -190,7 +194,7 @@ export default function AnalysisDetail() {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
       <OfflineIndicator />
-      <Header title={analysis.file_name}>
+      <Header title={analysis.file_name || 'Análise'}>
         <RealtimeStatusIndicator status={realtimeStatus} />
         <PDFDownloadLink
           document={<AnalysisPDF analysis={analysis} items={items} />}
@@ -347,10 +351,10 @@ export default function AnalysisDetail() {
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                {item.descricao}
+                                {item.descricao || 'Sem descrição'}
                                 {(item.modelo !== 'N/A' || item.patrimonio !== 'N/A') && (
                                   <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                                    Mod: {item.modelo} | Pat: {item.patrimonio}
+                                    Mod: {item.modelo || 'N/A'} | Pat: {item.patrimonio || 'N/A'}
                                   </div>
                                 )}
                               </td>
@@ -442,7 +446,7 @@ export default function AnalysisDetail() {
                         <div>
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-slate-900 dark:text-slate-100">{item.tag}</span>
+                              <span className="text-base font-bold text-slate-900 dark:text-slate-100">{item.tag || 'Sem tag'}</span>
                               <button onClick={() => startEditing(item)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -454,11 +458,11 @@ export default function AnalysisDetail() {
                               {item.status}
                             </span>
                           </div>
-                          <p className="mb-2 text-sm text-slate-700 dark:text-slate-300">{item.descricao}</p>
+                          <p className="mb-2 text-sm text-slate-700 dark:text-slate-300">{item.descricao || 'Sem descrição'}</p>
                           <div className="mb-4 grid grid-cols-2 gap-2 rounded border border-slate-100 bg-white p-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-                            <div><span className="font-medium">Mod:</span> {item.modelo}</div>
-                            <div><span className="font-medium">Pat:</span> {item.patrimonio}</div>
-                            <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie}</div>
+                            <div><span className="font-medium">Mod:</span> {item.modelo || 'N/A'}</div>
+                            <div><span className="font-medium">Pat:</span> {item.patrimonio || 'N/A'}</div>
+                            <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie || 'N/A'}</div>
                           </div>
                           <div className="flex gap-2">
                             <button
