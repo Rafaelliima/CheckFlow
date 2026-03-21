@@ -64,8 +64,8 @@ describe('DashboardPage', () => {
       </BrowserRouter>
     );
 
-    const btn = await screen.findByText('Nova Análise Manual');
-    fireEvent.click(btn);
+    const btns = await screen.findAllByText('Nova Análise');
+    fireEvent.click(btns[0]);
 
     // Wait for the async operation
     await new Promise(resolve => setTimeout(resolve, 0));

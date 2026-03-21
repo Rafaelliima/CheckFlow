@@ -65,8 +65,11 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    expect(await screen.findByText('T-01')).toBeInTheDocument();
-    expect(await screen.findByText('Desc')).toBeInTheDocument();
+    const elements = await screen.findAllByText('T-01');
+    expect(elements[0]).toBeInTheDocument();
+    
+    const descElements = await screen.findAllByText('Desc');
+    expect(descElements[0]).toBeInTheDocument();
   });
 
   it('botão de editar status altera valor', async () => {
@@ -76,8 +79,8 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    const okButton = await screen.findByRole('button', { name: 'OK' });
-    fireEvent.click(okButton);
+    const okButtons = await screen.findAllByTitle('Marcar como OK');
+    fireEvent.click(okButtons[0]);
 
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -91,7 +94,8 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    expect(await screen.findByText('Exportar PDF')).toBeInTheDocument();
+    const elements = await screen.findAllByText('Exportar PDF');
+    expect(elements[0]).toBeInTheDocument();
   });
 
   it('campo notas gerais salva ao clicar no botão', async () => {
@@ -110,5 +114,42 @@ describe('AnalysisDetail', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(queueMutation).toHaveBeenCalledWith('UPDATE', 'analyses', '1', expect.objectContaining({ notes: 'Novas notas' }));
+  });
+
+  it('filtra itens na barra de pesquisa', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const searchInput = await screen.findByPlaceholderText(/Buscar por tag/i);
+    fireEvent.change(searchInput, { target: { value: 'Inexistente' } });
+
+    const notFoundElements = await screen.findAllByText('Nenhum item encontrado para a busca.');
+    expect(notFoundElements[0]).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: 'T-01' } });
+    const foundElements = await screen.findAllByText('T-01');
+    expect(foundElements[0]).toBeInTheDocument();
+  });
+
+  it('abre e fecha o modal de adicionar item', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const fab = await screen.findByLabelText('Adicionar Item');
+    fireEvent.click(fab);
+
+    const modalTitle = await screen.findByText('Adicionar Novo Item');
+    expect(modalTitle).toBeInTheDocument();
+
+    const closeBtn = await screen.findByText('Cancelar');
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByText('Adicionar Novo Item')).not.toBeInTheDocument();
   });
 });

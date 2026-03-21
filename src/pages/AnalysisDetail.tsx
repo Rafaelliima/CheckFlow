@@ -8,6 +8,9 @@ import { queueMutation } from '../lib/sync';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { AnalysisPDF } from '../components/AnalysisPDF';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { Header } from '../components/Header';
+import { OfflineIndicator } from '../components/OfflineIndicator';
+import { Search, X, Plus, Edit2, CheckCircle, AlertTriangle, Clock, FileDown } from 'lucide-react';
 
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,8 +22,10 @@ export default function AnalysisDetail() {
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
   
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   
-  // Form state
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [tag, setTag] = useState('');
   const [descricao, setDescricao] = useState('');
   const [modelo, setModelo] = useState('');
@@ -42,7 +47,6 @@ export default function AnalysisDetail() {
     if (analysis && !notes) {
       setNotes(analysis.notes || '');
     }
-    // We assume data is pulled globally in Dashboard, but we could also pull here
     setLoading(false);
   }, [analysis]);
 
@@ -75,6 +79,7 @@ export default function AnalysisDetail() {
       setPatrimonio('');
       setNumeroSerie('');
       setStatus('Pendente');
+      setIsModalOpen(false);
     } catch (error) {
       console.error('Error adding item:', error);
       alert('Erro ao adicionar item.');
@@ -146,257 +151,218 @@ export default function AnalysisDetail() {
     return <div className="min-h-screen flex items-center justify-center">Análise não encontrada.</div>;
   }
 
+  const filteredItems = items.filter(item => {
+    const q = searchQuery.toLowerCase();
+    return (
+      item.tag.toLowerCase().includes(q) ||
+      item.descricao.toLowerCase().includes(q) ||
+      item.patrimonio.toLowerCase().includes(q) ||
+      item.numero_serie.toLowerCase().includes(q)
+    );
+  });
+
   const totalItems = items.length;
   const completedItems = items.filter(i => i.status !== 'Pendente').length;
   const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
-              <Link to="/dashboard" className="text-indigo-600 hover:text-indigo-900 font-medium mr-4">
-                &larr; Voltar
-              </Link>
-              <h1 className="text-xl font-bold text-gray-900">{analysis.file_name}</h1>
-            </div>
-            <div>
-              <PDFDownloadLink
-                document={<AnalysisPDF analysis={analysis} items={items} />}
-                fileName={`relatorio-${analysis.id}.pdf`}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                {({ loading }) => (loading ? 'Gerando PDF...' : 'Exportar PDF')}
-              </PDFDownloadLink>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-slate-50 pb-24">
+      <OfflineIndicator />
+      <Header title={analysis.file_name}>
+        <PDFDownloadLink
+          document={<AnalysisPDF analysis={analysis} items={items} />}
+          fileName={`relatorio-${analysis.id}.pdf`}
+          className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[44px]"
+        >
+          {({ loading }) => (
+            <>
+              <FileDown className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">{loading ? 'Gerando...' : 'Exportar PDF'}</span>
+              <span className="sm:hidden">PDF</span>
+            </>
+          )}
+        </PDFDownloadLink>
+      </Header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Progress and Summary */}
-        <div className="px-4 sm:px-0 mb-6">
-          <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex flex-col md:flex-row justify-between md:items-center mb-4">
-              <div>
-                <h2 className="text-lg font-medium text-gray-900">Progresso da Análise</h2>
-                <p className="text-sm text-gray-500">{completedItems} de {totalItems} itens verificados</p>
-              </div>
-              <div className="mt-4 md:mt-0 text-right">
-                <span className="text-2xl font-bold text-indigo-600">{progressPercent}%</span>
-              </div>
+        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Progresso da Análise</h2>
+              <p className="text-sm text-slate-500">{completedItems} de {totalItems} itens verificados</p>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+            <div className="text-left sm:text-right">
+              <span className="text-3xl font-bold text-indigo-600">{progressPercent}%</span>
             </div>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+            <div className={`h-3 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progressPercent}%` }}></div>
           </div>
         </div>
 
-        <div className="px-4 sm:px-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          {/* Form to add item & Notes */}
-          <div className="md:col-span-1 space-y-6">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Notas Gerais</h2>
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por tag, descrição, patrimônio ou nº série..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-10 py-3 sm:py-2 border border-slate-300 rounded-lg leading-5 bg-white placeholder-slate-500 focus:outline-none focus:placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 min-w-[44px] justify-center"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="mt-2 text-sm text-slate-500">
+              {filteredItems.length} resultado{filteredItems.length !== 1 ? 's' : ''} encontrado{filteredItems.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Notes */}
+          <div className="lg:col-span-1 order-2 lg:order-1">
+            <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 sm:p-6">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Notas Gerais</h2>
               <textarea
                 rows={4}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-none"
                 placeholder="Observações gerais sobre esta análise..."
               />
               <button
                 onClick={handleSaveNotes}
                 disabled={savingNotes}
-                className="mt-3 w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="mt-4 w-full flex justify-center py-3 sm:py-2 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 min-h-[44px]"
               >
                 {savingNotes ? 'Salvando...' : 'Salvar Notas'}
               </button>
             </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Adicionar Item</h2>
-              <form onSubmit={handleAddItem} className="space-y-4">
-                <div>
-                  <label htmlFor="tag" className="block text-sm font-medium text-gray-700">Tag</label>
-                  <input
-                    type="text"
-                    id="tag"
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="Ex: EXT-01"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="descricao" className="block text-sm font-medium text-gray-700">Descrição</label>
-                  <input
-                    type="text"
-                    id="descricao"
-                    value={descricao}
-                    onChange={(e) => setDescricao(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="Ex: Extintor de Incêndio"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
-                  <input
-                    type="text"
-                    id="modelo"
-                    value={modelo}
-                    onChange={(e) => setModelo(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="patrimonio" className="block text-sm font-medium text-gray-700">Patrimônio</label>
-                  <input
-                    type="text"
-                    id="patrimonio"
-                    value={patrimonio}
-                    onChange={(e) => setPatrimonio(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="numeroSerie" className="block text-sm font-medium text-gray-700">Número de Série</label>
-                  <input
-                    type="text"
-                    id="numeroSerie"
-                    value={numeroSerie}
-                    onChange={(e) => setNumeroSerie(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
-                  <select
-                    id="status"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  >
-                    <option value="Pendente">Pendente</option>
-                    <option value="OK">OK</option>
-                    <option value="Divergência">Divergência</option>
-                  </select>
-                </div>
-                <button
-                  type="submit"
-                  disabled={adding}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                >
-                  {adding ? 'Adicionando...' : 'Adicionar'}
-                </button>
-              </form>
-            </div>
           </div>
 
           {/* List of items */}
-          <div className="md:col-span-2">
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">Itens da Análise</h3>
+          <div className="lg:col-span-2 order-1 lg:order-2">
+            <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-4 sm:px-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-slate-900">Itens da Análise</h3>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tag</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tag</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Descrição</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {items.length === 0 ? (
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                          Nenhum item adicionado ainda.
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                          {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
                         </td>
                       </tr>
                     ) : (
-                      items.map((item) => (
-                        <tr key={item.id} className={item.status === 'Pendente' ? 'bg-white' : 'bg-gray-50'}>
+                      filteredItems.map((item) => (
+                        <tr key={item.id} className={item.status === 'Pendente' ? 'bg-white' : 'bg-slate-50'}>
                           {editingItemId === item.id ? (
                             <td colSpan={4} className="px-6 py-4">
                               <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700">Tag</label>
-                                  <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" />
+                                  <label className="block text-xs font-medium text-slate-700">Tag</label>
+                                  <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-1 px-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700">Descrição</label>
-                                  <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" />
+                                  <label className="block text-xs font-medium text-slate-700">Descrição</label>
+                                  <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-1 px-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700">Modelo</label>
-                                  <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" />
+                                  <label className="block text-xs font-medium text-slate-700">Modelo</label>
+                                  <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-1 px-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700">Patrimônio</label>
-                                  <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" />
+                                  <label className="block text-xs font-medium text-slate-700">Patrimônio</label>
+                                  <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-1 px-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700">Nº Série</label>
-                                  <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" />
+                                  <label className="block text-xs font-medium text-slate-700">Nº Série</label>
+                                  <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-md shadow-sm py-1 px-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                                 </div>
                               </div>
                               <div className="flex space-x-2">
-                                <button onClick={handleSaveEdit} disabled={savingEdit} className="px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                <button onClick={handleSaveEdit} disabled={savingEdit} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 min-h-[44px]">
                                   {savingEdit ? 'Salvando...' : 'Salvar'}
                                 </button>
-                                <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="px-3 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-300">
+                                <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-300 min-h-[44px]">
                                   Cancelar
                                 </button>
                               </div>
                             </td>
                           ) : (
                             <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {item.tag}
-                                <button onClick={() => startEditing(item)} className="ml-2 text-gray-400 hover:text-indigo-600" title="Editar">
-                                  ✎
-                                </button>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                <div className="flex items-center">
+                                  {item.tag}
+                                  <button onClick={() => startEditing(item)} className="ml-2 text-slate-400 hover:text-indigo-600 p-1" title="Editar">
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-500">
+                              <td className="px-6 py-4 text-sm text-slate-500">
                                 {item.descricao}
                                 {(item.modelo !== 'N/A' || item.patrimonio !== 'N/A') && (
-                                  <div className="text-xs text-gray-400 mt-1">
+                                  <div className="text-xs text-slate-400 mt-1">
                                     Mod: {item.modelo} | Pat: {item.patrimonio}
                                   </div>
                                 )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                  ${item.status === 'OK' ? 'bg-green-100 text-green-800' : 
+                                <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                  ${item.status === 'OK' ? 'bg-emerald-100 text-emerald-800' : 
                                     item.status === 'Divergência' ? 'bg-red-100 text-red-800' : 
-                                    'bg-yellow-100 text-yellow-800'}`}>
+                                    'bg-amber-100 text-amber-800'}`}>
                                   {item.status}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <button
-                                  onClick={() => handleUpdateStatus(item.id, 'OK')}
-                                  className="text-green-600 hover:text-green-900"
-                                >
-                                  OK
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(item.id, 'Divergência')}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  Divergência
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(item.id, 'Pendente')}
-                                  className="text-yellow-600 hover:text-yellow-900"
-                                >
-                                  Pendente
-                                </button>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => handleUpdateStatus(item.id, 'OK')}
+                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="Marcar como OK"
+                                  >
+                                    <CheckCircle className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateStatus(item.id, 'Divergência')}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Marcar Divergência"
+                                  >
+                                    <AlertTriangle className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateStatus(item.id, 'Pendente')}
+                                    className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                    title="Marcar como Pendente"
+                                  >
+                                    <Clock className="w-5 h-5" />
+                                  </button>
+                                </div>
                               </td>
                             </>
                           )}
@@ -406,11 +372,221 @@ export default function AnalysisDetail() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-slate-200">
+                {filteredItems.length === 0 ? (
+                  <div className="px-4 py-12 text-center text-slate-500">
+                    {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
+                  </div>
+                ) : (
+                  filteredItems.map((item) => (
+                    <div key={item.id} className={`p-4 ${item.status === 'Pendente' ? 'bg-white' : 'bg-slate-50'}`}>
+                      {editingItemId === item.id ? (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700">Tag</label>
+                            <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700">Descrição</label>
+                            <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700">Modelo</label>
+                              <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700">Patrimônio</label>
+                              <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700">Nº Série</label>
+                            <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                          </div>
+                          <div className="flex space-x-3 pt-2">
+                            <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 py-3 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 min-h-[44px]">
+                              {savingEdit ? 'Salvando...' : 'Salvar'}
+                            </button>
+                            <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="flex-1 py-3 bg-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-300 min-h-[44px]">
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold text-slate-900">{item.tag}</span>
+                              <button onClick={() => startEditing(item)} className="text-slate-400 hover:text-indigo-600 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" title="Editar">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                              ${item.status === 'OK' ? 'bg-emerald-100 text-emerald-800' : 
+                                item.status === 'Divergência' ? 'bg-red-100 text-red-800' : 
+                                'bg-amber-100 text-amber-800'}`}>
+                              {item.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-700 mb-2">{item.descricao}</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 mb-4 bg-white p-2 rounded border border-slate-100">
+                            <div><span className="font-medium">Mod:</span> {item.modelo}</div>
+                            <div><span className="font-medium">Pat:</span> {item.patrimonio}</div>
+                            <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateStatus(item.id, 'OK')}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 min-h-[44px] text-sm font-medium"
+                            >
+                              <CheckCircle className="w-4 h-4" /> OK
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(item.id, 'Divergência')}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 px-3 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 min-h-[44px] text-sm font-medium"
+                            >
+                              <AlertTriangle className="w-4 h-4" /> Diverg.
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(item.id, 'Pendente')}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 px-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px] text-sm font-medium"
+                            >
+                              <Clock className="w-4 h-4" /> Pend.
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-
         </div>
       </main>
+
+      {/* Floating Action Button */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform hover:scale-105 z-40"
+        aria-label="Adicionar Item"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Add Item Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setIsModalOpen(false)}></div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-t-2xl sm:rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="text-lg leading-6 font-bold text-slate-900" id="modal-title">
+                    Adicionar Novo Item
+                  </h3>
+                  <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-500 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <form id="add-item-form" onSubmit={handleAddItem} className="space-y-4">
+                  <div>
+                    <label htmlFor="tag" className="block text-sm font-medium text-slate-700">Tag *</label>
+                    <input
+                      type="text"
+                      id="tag"
+                      value={tag}
+                      onChange={(e) => setTag(e.target.value)}
+                      required
+                      className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Ex: EXT-01"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="descricao" className="block text-sm font-medium text-slate-700">Descrição</label>
+                    <input
+                      type="text"
+                      id="descricao"
+                      value={descricao}
+                      onChange={(e) => setDescricao(e.target.value)}
+                      className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="Ex: Extintor de Incêndio"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="modelo" className="block text-sm font-medium text-slate-700">Modelo</label>
+                      <input
+                        type="text"
+                        id="modelo"
+                        value={modelo}
+                        onChange={(e) => setModelo(e.target.value)}
+                        className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="patrimonio" className="block text-sm font-medium text-slate-700">Patrimônio</label>
+                      <input
+                        type="text"
+                        id="patrimonio"
+                        value={patrimonio}
+                        onChange={(e) => setPatrimonio(e.target.value)}
+                        className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="numeroSerie" className="block text-sm font-medium text-slate-700">Número de Série</label>
+                    <input
+                      type="text"
+                      id="numeroSerie"
+                      value={numeroSerie}
+                      onChange={(e) => setNumeroSerie(e.target.value)}
+                      className="mt-1 block w-full border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="status" className="block text-sm font-medium text-slate-700">Status Inicial</label>
+                    <select
+                      id="status"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="mt-1 block w-full bg-white border border-slate-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    >
+                      <option value="Pendente">Pendente</option>
+                      <option value="OK">OK</option>
+                      <option value="Divergência">Divergência</option>
+                    </select>
+                  </div>
+                </form>
+              </div>
+              <div className="bg-slate-50 px-4 py-4 sm:px-6 flex flex-col sm:flex-row-reverse gap-3">
+                <button
+                  type="submit"
+                  form="add-item-form"
+                  disabled={adding}
+                  className="w-full sm:w-auto flex justify-center py-3 sm:py-2 px-6 border border-transparent rounded-lg shadow-sm text-base sm:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 min-h-[44px]"
+                >
+                  {adding ? 'Salvando...' : 'Salvar Item'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-full sm:w-auto flex justify-center py-3 sm:py-2 px-6 border border-slate-300 rounded-lg shadow-sm text-base sm:text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[44px]"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,9 @@ import { extractTextFromPDF } from '../lib/pdf';
 import { extractEquipmentFromText } from '../lib/gemini';
 import { db } from '../lib/db';
 import { pullData, queueMutation } from '../lib/sync';
+import { Header } from '../components/Header';
+import { OfflineIndicator } from '../components/OfflineIndicator';
+import { FileText, CheckCircle, AlertTriangle, Clock, Plus, Upload } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -120,19 +123,12 @@ export default function Dashboard() {
     
     try {
       await queueMutation('INSERT', 'analyses', analysisId, newAnalysis);
-      
-      // Navigate to the new analysis detail page
       navigate(`/analysis/${analysisId}`);
     } catch (error) {
       console.error('Error creating analysis:', error);
       alert('Erro ao criar nova análise.');
       setCreating(false);
     }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
   };
 
   if (loading) {
@@ -143,38 +139,63 @@ export default function Dashboard() {
     a.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Calculate metrics
+  const totalAnalyses = analyses.length;
+  const allItems = analyses.flatMap(a => a.analysis_items || []);
+  const totalItems = allItems.length;
+  const itemsOk = allItems.filter(i => i.status === 'OK').length;
+  const itemsPending = allItems.filter(i => i.status === 'Pendente').length;
+  const itemsDivergent = allItems.filter(i => i.status === 'Divergência').length;
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">RondaAI Dashboard</h1>
+    <div className="min-h-screen bg-slate-50 pb-20 sm:pb-0">
+      <OfflineIndicator />
+      <Header title="RondaAI Dashboard" />
+
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
+            <div className="flex items-center text-slate-500 mb-2">
+              <FileText className="w-4 h-4 mr-2" />
+              <span className="text-sm font-medium">Total Análises</span>
             </div>
-            <div className="flex items-center">
-              <button
-                onClick={handleLogout}
-                className="ml-4 px-4 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
-                Sair
-              </button>
+            <span className="text-2xl font-bold text-slate-900">{totalAnalyses}</span>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
+            <div className="flex items-center text-emerald-500 mb-2">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              <span className="text-sm font-medium">Itens OK</span>
             </div>
+            <span className="text-2xl font-bold text-slate-900">{itemsOk}</span>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
+            <div className="flex items-center text-amber-500 mb-2">
+              <Clock className="w-4 h-4 mr-2" />
+              <span className="text-sm font-medium">Pendentes</span>
+            </div>
+            <span className="text-2xl font-bold text-slate-900">{itemsPending}</span>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex flex-col">
+            <div className="flex items-center text-red-500 mb-2">
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              <span className="text-sm font-medium">Divergências</span>
+            </div>
+            <span className="text-2xl font-bold text-slate-900">{itemsDivergent}</span>
           </div>
         </div>
-      </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-            <h2 className="text-2xl font-semibold text-gray-900">Minhas Análises</h2>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
-              <input
-                type="text"
-                placeholder="Buscar análise..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">Minhas Análises</h2>
+          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+            <input
+              type="text"
+              placeholder="Buscar análise..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 px-4 py-3 sm:py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base sm:text-sm"
+            />
+            <div className="flex gap-2 w-full sm:w-auto">
               <input 
                 type="file" 
                 accept="application/pdf" 
@@ -185,72 +206,79 @@ export default function Dashboard() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!!uploadStep || creating}
-                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 sm:py-2 border border-slate-300 text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 min-h-[44px]"
               >
-                {uploadStep === 'pdf' ? 'Lendo PDF...' : 
-                 uploadStep === 'ai' ? 'Analisando IA...' : 
-                 uploadStep === 'saving' ? 'Salvando...' : 'Upload PDF'}
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {uploadStep === 'pdf' ? 'Lendo...' : 
+                   uploadStep === 'ai' ? 'Analisando...' : 
+                   uploadStep === 'saving' ? 'Salvando...' : 'Upload PDF'}
+                </span>
+                <span className="sm:hidden">PDF</span>
               </button>
               <button
                 onClick={handleCreateAnalysis}
                 disabled={creating || !!uploadStep}
-                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 sm:py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 min-h-[44px]"
               >
-                {creating ? 'Criando...' : 'Nova Análise Manual'}
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">{creating ? 'Criando...' : 'Nova Análise'}</span>
+                <span className="sm:hidden">Nova</span>
               </button>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {filteredAnalyses.length === 0 ? (
-                <li className="px-4 py-12 text-center text-gray-500">
-                  Nenhuma análise encontrada.
-                </li>
-              ) : (
-                filteredAnalyses.map((analysis) => {
-                  const totalItems = analysis.analysis_items?.length || 0;
-                  const completedItems = analysis.analysis_items?.filter(i => i.status !== 'Pendente').length || 0;
-                  const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
+        <div className="bg-white shadow-sm border border-slate-200 overflow-hidden rounded-xl">
+          <ul className="divide-y divide-slate-200">
+            {filteredAnalyses.length === 0 ? (
+              <li className="px-4 py-12 text-center text-slate-500">
+                Nenhuma análise encontrada.
+              </li>
+            ) : (
+              filteredAnalyses.map((analysis) => {
+                const totalItems = analysis.analysis_items?.length || 0;
+                const completedItems = analysis.analysis_items?.filter(i => i.status !== 'Pendente').length || 0;
+                const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
 
-                  return (
-                    <li key={analysis.id}>
-                      <Link to={`/analysis/${analysis.id}`} className="block hover:bg-gray-50">
-                        <div className="px-4 py-4 sm:px-6">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-indigo-600 truncate">
-                              {analysis.file_name}
+                return (
+                  <li key={analysis.id}>
+                    <Link to={`/analysis/${analysis.id}`} className="block hover:bg-slate-50 transition-colors">
+                      <div className="px-4 py-4 sm:px-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-base font-medium text-indigo-600 truncate pr-4">
+                            {analysis.file_name}
+                          </p>
+                          <div className="flex-shrink-0">
+                            <p className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${progressPercent === 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                              {progressPercent}%
                             </p>
-                            <div className="ml-2 flex-shrink-0 flex">
-                              <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${progressPercent === 100 ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                                {progressPercent}% Concluído
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-2 sm:flex sm:justify-between">
-                            <div className="sm:flex">
-                              <p className="flex items-center text-sm text-gray-500">
-                                Criada em {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                            </div>
-                            <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                              <p>
-                                {completedItems} de {totalItems} itens verificados
-                              </p>
-                            </div>
-                          </div>
-                          {/* Progress Bar */}
-                          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-3">
-                            <div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
                           </div>
                         </div>
-                      </Link>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          </div>
+                        <div className="sm:flex sm:justify-between">
+                          <div className="sm:flex">
+                            <p className="flex items-center text-sm text-slate-500">
+                              <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-slate-400" />
+                              {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <div className="mt-2 flex items-center text-sm text-slate-500 sm:mt-0">
+                            <p>
+                              {completedItems} de {totalItems} itens verificados
+                            </p>
+                          </div>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+                          <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progressPercent}%` }}></div>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })
+            )}
+          </ul>
         </div>
       </main>
     </div>
