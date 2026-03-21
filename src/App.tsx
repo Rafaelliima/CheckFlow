@@ -5,12 +5,24 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AnalysisDetail from './pages/AnalysisDetail';
+import { processQueue } from './lib/sync';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Process queue on mount
+    processQueue();
+
+    // Process queue when coming back online
+    const handleOnline = () => {
+      console.log('App is online. Processing sync queue...');
+      processQueue();
+    };
+
+    window.addEventListener('online', handleOnline);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -22,7 +34,10 @@ export default function App() {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   if (loading) {

@@ -2,8 +2,10 @@ export interface Analysis {
   id: string;
   user_id: string;
   file_name: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
+  analysis_items?: { id: string; status: string }[];
 }
 
 export interface AnalysisItem {
