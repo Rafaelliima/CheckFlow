@@ -69,16 +69,15 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    const elements = await screen.findAllByText('T-01');
-    expect(elements[0]).toBeInTheDocument();
+    const tagElements = await screen.findAllByText('T-01');
+    expect(tagElements[0]).toBeInTheDocument();
     
     const descElements = await screen.findAllByText('Desc');
     expect(descElements[0]).toBeInTheDocument();
 
     expect(screen.queryByText(/Colaborativo/i)).not.toBeInTheDocument();
 
-    const realtimeButtons = await screen.findAllByTestId('realtime-status-button');
-    const realtimeButton = realtimeButtons[0];
+    const realtimeButton = await screen.findByTestId('realtime-status-button');
     expect(realtimeButton).toBeInTheDocument();
     expect(screen.queryByTestId('realtime-status-tooltip')).not.toBeInTheDocument();
 
@@ -108,8 +107,7 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    const elements = await screen.findAllByText('Exportar PDF');
-    expect(elements[0]).toBeInTheDocument();
+    expect(await screen.findByText('Exportar PDF')).toBeInTheDocument();
   });
 
   it('campo notas gerais salva ao clicar no botão', async () => {
