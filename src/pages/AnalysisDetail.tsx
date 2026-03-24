@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from '../lib/supabase';
 import { AnalysisItem } from '../types';
 import { db } from '../lib/db';
-import { queueMutation } from '../lib/sync';
+import { queueMutation, retryFailedOperations } from '../lib/sync';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { AnalysisPDF } from '../components/AnalysisPDF';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
@@ -13,6 +13,7 @@ import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
 import { Search, X, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Trash2 } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
+import toast from 'react-hot-toast';
 
 function normalizeSearchValue(value: string | null | undefined) {
   return (value ?? '').toLowerCase();
@@ -37,11 +38,13 @@ export default function AnalysisDetail() {
 
   const analysis = useLiveQuery(() => id ? db.analyses.get(id) : undefined, [id]);
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
+  const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
   
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [deletingAnalysis, setDeletingAnalysis] = useState(false);
+  const [retryingFailedSync, setRetryingFailedSync] = useState(false);
 
   // Notes state
   const [notes, setNotes] = useState('');
@@ -145,6 +148,21 @@ export default function AnalysisDetail() {
     }
   };
 
+  const handleRetryFailedSync = async () => {
+    setRetryingFailedSync(true);
+    try {
+      const requeued = await retryFailedOperations();
+      if (requeued > 0) {
+        toast.success('Tentativa de sincronização iniciada.');
+      }
+    } catch (error) {
+      console.error('Error retrying failed sync operations:', error);
+      toast.error('Não foi possível reenfileirar alterações pendentes.');
+    } finally {
+      setRetryingFailedSync(false);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
@@ -223,6 +241,22 @@ export default function AnalysisDetail() {
       </Header>
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {failedOperationsCount > 0 && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-100">
+            <p className="text-sm font-medium">
+              {failedOperationsCount} alteração(ões) não foram sincronizadas. Tente novamente ou recarregue a página.
+            </p>
+            <button
+              type="button"
+              onClick={handleRetryFailedSync}
+              disabled={retryingFailedSync}
+              className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-amber-400/50 px-4 py-2 text-sm font-medium text-amber-100 transition hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {retryingFailedSync ? 'Tentando...' : 'Tentar novamente'}
+            </button>
+          </div>
+        )}
+
         {/* Progress and Summary */}
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { queueMutation, processQueue, pullData } from '../../src/lib/sync';
+import { queueMutation, processQueue, pullData, retryFailedOperations } from '../../src/lib/sync';
 import { db } from '../../src/lib/db';
 import { supabase } from '../../src/lib/supabase';
 import toast from 'react-hot-toast';
@@ -26,6 +26,7 @@ describe('Offline Queue (sync.ts)', () => {
     await db.analyses.clear();
     await db.analysis_items.clear();
     await db.sync_queue.clear();
+    await db.failed_operations.clear();
   });
 
   afterEach(() => {
@@ -150,7 +151,36 @@ describe('Offline Queue (sync.ts)', () => {
 
     const queue = await db.sync_queue.toArray();
     expect(queue.length).toBe(0);
+    const failed = await db.failed_operations.toArray();
+    expect(failed.length).toBe(1);
+    expect(failed[0].recordId).toBe('1');
     expect(toast.error).toHaveBeenCalledWith('Não foi possível sincronizar alterações. Verifique sua conexão e tente novamente.');
+  });
+
+  it('reenvia operações com falha para fila e tenta sincronizar novamente', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const insertMock = vi.fn().mockResolvedValue({ error: null });
+    (supabase.from as any).mockReturnValue({ insert: insertMock });
+
+    await db.failed_operations.add({
+      action: 'INSERT',
+      table: 'analyses',
+      recordId: 'requeue-1',
+      payload: { id: 'requeue-1' },
+      timestamp: Date.now() - 5000,
+      retryCount: 3,
+      failedAt: Date.now(),
+    });
+
+    const count = await retryFailedOperations();
+    expect(count).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const failed = await db.failed_operations.toArray();
+    const queue = await db.sync_queue.toArray();
+    expect(failed.length).toBe(0);
+    expect(queue.length).toBe(0);
+    expect(insertMock).toHaveBeenCalledWith({ id: 'requeue-1' });
   });
 
   it('mostra erro ao usuário quando escrita local falha em queueMutation', async () => {

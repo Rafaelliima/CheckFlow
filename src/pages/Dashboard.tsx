@@ -6,10 +6,11 @@ import { Analysis } from '../types';
 import { extractTextFromPDF } from '../lib/pdf';
 import { extractEquipmentFromText } from '../lib/gemini';
 import { db } from '../lib/db';
-import { pullData, queueMutation } from '../lib/sync';
+import { pullData, queueMutation, retryFailedOperations } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { Clock, Trash2, Upload, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 
 export function normalizeImportedItem(item: {
@@ -38,7 +39,9 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreRemote, setHasMoreRemote] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [retryingFailedSync, setRetryingFailedSync] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
 
   const analyses = useLiveQuery(async () => {
     const ans = await db.analyses.orderBy('created_at').reverse().toArray();
@@ -77,6 +80,21 @@ export default function Dashboard() {
       setNextCursor(more.nextBeforeCreatedAt);
     } finally {
       setLoadingMore(false);
+    }
+  };
+
+  const handleRetryFailedSync = async () => {
+    setRetryingFailedSync(true);
+    try {
+      const requeued = await retryFailedOperations();
+      if (requeued > 0) {
+        toast.success('Tentativa de sincronização iniciada.');
+      }
+    } catch (error) {
+      console.error('Error retrying failed sync operations:', error);
+      toast.error('Não foi possível reenfileirar alterações pendentes.');
+    } finally {
+      setRetryingFailedSync(false);
     }
   };
 
@@ -210,6 +228,22 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {failedOperationsCount > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-100">
+            <p className="text-sm font-medium">
+              {failedOperationsCount} alteração(ões) não foram sincronizadas. Tente novamente ou recarregue a página.
+            </p>
+            <button
+              type="button"
+              onClick={handleRetryFailedSync}
+              disabled={retryingFailedSync}
+              className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-amber-400/50 px-4 py-2 text-sm font-medium text-amber-100 transition hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {retryingFailedSync ? 'Tentando...' : 'Tentar novamente'}
+            </button>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
           <ul className="divide-y divide-slate-800">

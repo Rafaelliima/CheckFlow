@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Dashboard, { normalizeImportedItem } from '../../src/pages/Dashboard';
-import { pullData, queueMutation } from '../../src/lib/sync';
+import { pullData, queueMutation, retryFailedOperations } from '../../src/lib/sync';
 
 vi.mock('../../src/lib/pdf', () => ({
   extractTextFromPDF: vi.fn(),
@@ -20,10 +20,14 @@ vi.mock('../../src/lib/supabase', () => ({
   },
 }));
 
+let failedOpsCount = 0;
 vi.mock('dexie-react-hooks', () => ({
-  useLiveQuery: vi.fn(() => [
-    { id: '1', file_name: 'Análise 1', created_by_email: 'teste@email.com', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
-  ]),
+  useLiveQuery: vi.fn((fn: Function) => {
+    if (fn.toString().includes('failed_operations.count')) return failedOpsCount;
+    return [
+      { id: '1', file_name: 'Análise 1', created_by_email: 'teste@email.com', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
+    ];
+  }),
 }));
 
 vi.mock('../../src/lib/sync', () => ({
@@ -32,12 +36,14 @@ vi.mock('../../src/lib/sync', () => ({
     hasMore: false,
     nextBeforeCreatedAt: null,
   }),
+  retryFailedOperations: vi.fn().mockResolvedValue(1),
   queueMutation: vi.fn(),
 }));
 
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    failedOpsCount = 0;
     (pullData as any).mockResolvedValue({
       loaded: 1,
       hasMore: false,
@@ -83,6 +89,24 @@ describe('DashboardPage', () => {
 
     await waitFor(() => {
       expect(queueMutation).toHaveBeenCalledWith('DELETE', 'analyses', '1', expect.any(Object));
+    });
+  });
+
+  it('mostra aviso de alterações não sincronizadas e permite tentar novamente', async () => {
+    failedOpsCount = 2;
+
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText(/2 alteração\(ões\) não foram sincronizadas/i)).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: 'Tentar novamente' });
+    fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      expect(retryFailedOperations).toHaveBeenCalled();
     });
   });
 });

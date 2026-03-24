@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import AnalysisDetail, { sortAnalysisItems } from '../../src/pages/AnalysisDetail';
-import { queueMutation } from '../../src/lib/sync';
+import { queueMutation, retryFailedOperations } from '../../src/lib/sync';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -27,8 +27,12 @@ vi.mock('../../src/lib/supabase', () => ({
   },
 }));
 
+let failedOpsCount = 0;
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn((fn, deps) => {
+    if (fn.toString().includes('failed_operations.count')) {
+      return failedOpsCount;
+    }
     if (deps && deps[0] === '1' && fn.toString().includes('db.analyses.get')) {
       return { id: '1', file_name: 'Análise 1', notes: 'Notas iniciais', created_at: '2026-03-21T10:00:00.000Z' };
     }
@@ -45,6 +49,7 @@ vi.mock('dexie-react-hooks', () => ({
 
 vi.mock('../../src/lib/sync', () => ({
   queueMutation: vi.fn(),
+  retryFailedOperations: vi.fn().mockResolvedValue(1),
 }));
 
 // Mock PDFDownloadLink
@@ -60,6 +65,7 @@ vi.mock('@react-pdf/renderer', () => ({
 describe('AnalysisDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    failedOpsCount = 0;
   });
 
   it('renderiza itens, remove badge colaborativo e mostra ícone discreto de realtime', async () => {
@@ -146,6 +152,22 @@ describe('AnalysisDetail', () => {
     fireEvent.change(searchInput, { target: { value: 'T-01' } });
     const foundElements = await screen.findAllByText('T-01');
     expect(foundElements[0]).toBeInTheDocument();
+  });
+
+  it('exibe aviso de sincronização pendente e tenta reenfileirar operações', async () => {
+    failedOpsCount = 1;
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText(/1 alteração\(ões\) não foram sincronizadas/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    await waitFor(() => {
+      expect(retryFailedOperations).toHaveBeenCalled();
+    });
   });
 
   it('ordena itens com pendentes no topo e divergências por último', async () => {

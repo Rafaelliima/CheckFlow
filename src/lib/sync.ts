@@ -42,6 +42,15 @@ export async function processQueue() {
       attempt += 1;
 
       if (attempt >= MAX_RETRIES) {
+        await db.failed_operations.add({
+          action: op.action,
+          table: op.table,
+          recordId: op.recordId,
+          payload: op.payload,
+          timestamp: op.timestamp,
+          retryCount: attempt,
+          failedAt: Date.now(),
+        });
         await db.sync_queue.delete(op.id!);
         toast.error('Não foi possível sincronizar alterações. Verifique sua conexão e tente novamente.');
         addDebugLog('error', 'Operação removida da fila após atingir limite de tentativas', { op, maxRetries: MAX_RETRIES });
@@ -156,4 +165,26 @@ export async function queueMutation(action: 'INSERT'|'UPDATE'|'DELETE', table: '
 
   // 3. Try to process queue in background
   processQueue();
+}
+
+export async function retryFailedOperations() {
+  const failedOperations = await db.failed_operations.orderBy('failedAt').toArray();
+  if (failedOperations.length === 0) return 0;
+
+  await db.transaction('rw', db.sync_queue, db.failed_operations, async () => {
+    for (const failed of failedOperations) {
+      await db.sync_queue.add({
+        action: failed.action,
+        table: failed.table,
+        recordId: failed.recordId,
+        payload: failed.payload,
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+    }
+    await db.failed_operations.clear();
+  });
+
+  await processQueue();
+  return failedOperations.length;
 }
