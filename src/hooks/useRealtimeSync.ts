@@ -12,6 +12,8 @@ const HEARTBEAT_TIMEOUT_MS = 3000;
 const DEGRADED_LATENCY_MS = 1500;
 const OFFLINE_FAILURE_THRESHOLD = 3;
 const ONLINE_SUCCESS_THRESHOLD = 1;
+const CHANNEL_ERROR_RECONNECT_DELAY_MS = 100;
+const MIN_RECONNECT_GAP_MS = 300;
 
 export function useRealtimeSync(analysisId: string | undefined) {
   const [status, setStatus] = useState<RealtimeStatus>(() => {
@@ -25,6 +27,8 @@ export function useRealtimeSync(analysisId: string | undefined) {
   const reconnectAttemptsRef = useRef(0);
   const connectionGenerationRef = useRef(0);
   const processedEventKeysRef = useRef<Map<string, number>>(new Map());
+  const removedChannelsRef = useRef<WeakSet<object>>(new WeakSet());
+  const lastReconnectAtRef = useRef(0);
   const heartbeatFailuresRef = useRef(0);
   const heartbeatSuccessesRef = useRef(0);
   const isRealtimeSubscribedRef = useRef(false);
@@ -67,8 +71,9 @@ export function useRealtimeSync(analysisId: string | undefined) {
     };
 
     const removeChannelOnce = (channel: any) => {
-      if (!channel || channel.__checkflowRemoved) return;
-      channel.__checkflowRemoved = true;
+      if (!channel || typeof channel !== 'object') return;
+      if (removedChannelsRef.current.has(channel)) return;
+      removedChannelsRef.current.add(channel);
       supabase.removeChannel(channel);
     };
 
@@ -165,7 +170,10 @@ export function useRealtimeSync(analysisId: string | undefined) {
       heartbeatIntervalRef.current = window.setInterval(heartbeat, HEARTBEAT_INTERVAL_MS);
     };
 
-    const scheduleReconnect = (channelToRemove?: any) => {
+    const scheduleReconnect = (
+      reason: 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED',
+      channelToRemove?: any
+    ) => {
       if (!navigator.onLine) {
         updateConnectivityStatus('offline');
         return;
@@ -174,13 +182,24 @@ export function useRealtimeSync(analysisId: string | undefined) {
       if (reconnectTimeoutRef.current !== null) return;
 
       const attempt = reconnectAttemptsRef.current;
-      const delay = [1000, 2000, 4000, 8000, 10000][Math.min(attempt, 4)];
+      const baseDelay =
+        reason === 'CHANNEL_ERROR'
+          ? CHANNEL_ERROR_RECONNECT_DELAY_MS
+          : [1000, 2000, 4000, 8000, 10000][Math.min(attempt, 4)];
+      const now = Date.now();
+      const elapsedSinceLastReconnect = now - lastReconnectAtRef.current;
+      const debounceDelay =
+        elapsedSinceLastReconnect >= MIN_RECONNECT_GAP_MS
+          ? 0
+          : MIN_RECONNECT_GAP_MS - elapsedSinceLastReconnect;
+      const delay = Math.max(baseDelay, debounceDelay);
       reconnectAttemptsRef.current += 1;
       setRetryCount(reconnectAttemptsRef.current);
       updateConnectivityStatus('degraded');
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
         reconnectTimeoutRef.current = null;
+        lastReconnectAtRef.current = Date.now();
         removeChannelOnce(channelToRemove);
         connect();
       }, delay);
@@ -297,7 +316,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
           const failedChannel = channelRef.current;
           isRealtimeSubscribedRef.current = false;
           cleanupChannel({ remove: false });
-          scheduleReconnect(failedChannel);
+          scheduleReconnect(subscriptionStatus, failedChannel);
         }
       });
     };

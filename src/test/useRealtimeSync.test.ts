@@ -274,10 +274,32 @@ describe('useRealtimeSync', () => {
     expect(supabase.removeChannel).not.toHaveBeenCalled();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     expect(supabase.removeChannel).toHaveBeenCalledTimes(1);
     expect(supabase.channel).toHaveBeenCalledTimes(2);
+  });
+
+  it('aplica debounce mínimo entre reconexões consecutivas', async () => {
+    vi.useFakeTimers();
+    statusesQueue = [['CHANNEL_ERROR'], ['CHANNEL_ERROR'], ['SUBSCRIBED']];
+
+    renderHook(() => useRealtimeSync('1'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(3);
   });
 });
