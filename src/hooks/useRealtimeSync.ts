@@ -66,12 +66,24 @@ export function useRealtimeSync(analysisId: string | undefined) {
       return true;
     };
 
-    const cleanupChannel = () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+    const removeChannelOnce = (channel: any) => {
+      if (!channel || channel.__checkflowRemoved) return;
+      channel.__checkflowRemoved = true;
+      supabase.removeChannel(channel);
+    };
+
+    const cleanupChannel = (options?: { remove?: boolean }) => {
+      const channel = channelRef.current;
+      if (!channel) {
+        isRealtimeSubscribedRef.current = false;
+        return;
       }
+
+      channelRef.current = null;
       isRealtimeSubscribedRef.current = false;
+
+      if (options?.remove === false) return;
+      removeChannelOnce(channel);
     };
 
     const updateConnectivityStatus = (next: 'connected' | 'degraded' | 'offline') => {
@@ -153,7 +165,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
       heartbeatIntervalRef.current = window.setInterval(heartbeat, HEARTBEAT_INTERVAL_MS);
     };
 
-    const scheduleReconnect = () => {
+    const scheduleReconnect = (channelToRemove?: any) => {
       if (!navigator.onLine) {
         updateConnectivityStatus('offline');
         return;
@@ -169,6 +181,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
         reconnectTimeoutRef.current = null;
+        removeChannelOnce(channelToRemove);
         connect();
       }, delay);
     };
@@ -281,9 +294,10 @@ export function useRealtimeSync(analysisId: string | undefined) {
         }
 
         if (subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CLOSED') {
+          const failedChannel = channelRef.current;
           isRealtimeSubscribedRef.current = false;
-          cleanupChannel();
-          scheduleReconnect();
+          cleanupChannel({ remove: false });
+          scheduleReconnect(failedChannel);
         }
       });
     };

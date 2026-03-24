@@ -264,4 +264,20 @@ describe('useRealtimeSync', () => {
 
     expect(result.current.status).toBe('connected');
   });
+
+  it('não remove canal dentro do callback de subscribe para evitar recursão e remove de forma adiada antes de reconectar', async () => {
+    vi.useFakeTimers();
+    statusesQueue = [['CHANNEL_ERROR'], ['SUBSCRIBED']];
+
+    renderHook(() => useRealtimeSync('1'));
+
+    expect(supabase.removeChannel).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(1);
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+  });
 });
