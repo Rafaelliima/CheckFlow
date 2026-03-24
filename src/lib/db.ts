@@ -8,6 +8,7 @@ export interface SyncOperation {
   recordId: string;
   payload: any;
   timestamp: number;
+  retryCount?: number;
 }
 
 export class RondaDB extends Dexie {

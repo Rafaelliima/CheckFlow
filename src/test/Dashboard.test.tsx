@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Dashboard, { normalizeImportedItem } from '../../src/pages/Dashboard';
-import { queueMutation } from '../../src/lib/sync';
+import { pullData, queueMutation } from '../../src/lib/sync';
 
 vi.mock('../../src/lib/pdf', () => ({
   extractTextFromPDF: vi.fn(),
@@ -27,13 +27,22 @@ vi.mock('dexie-react-hooks', () => ({
 }));
 
 vi.mock('../../src/lib/sync', () => ({
-  pullData: vi.fn(),
+  pullData: vi.fn().mockResolvedValue({
+    loaded: 1,
+    hasMore: false,
+    nextBeforeCreatedAt: null,
+  }),
   queueMutation: vi.fn(),
 }));
 
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (pullData as any).mockResolvedValue({
+      loaded: 1,
+      hasMore: false,
+      nextBeforeCreatedAt: null,
+    });
   });
 
   it('lista análises do usuário com email do criador', async () => {

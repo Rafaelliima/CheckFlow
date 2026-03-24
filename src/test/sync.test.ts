@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { queueMutation, processQueue, pullData } from '../../src/lib/sync';
 import { db } from '../../src/lib/db';
 import { supabase } from '../../src/lib/supabase';
+import toast from 'react-hot-toast';
 
 vi.mock('../../src/lib/supabase', () => ({
   supabase: {
@@ -14,6 +15,12 @@ vi.mock('../../src/lib/supabase', () => ({
   },
 }));
 
+vi.mock('react-hot-toast', () => ({
+  default: {
+    error: vi.fn(),
+  },
+}));
+
 describe('Offline Queue (sync.ts)', () => {
   beforeEach(async () => {
     await db.analyses.clear();
@@ -23,6 +30,7 @@ describe('Offline Queue (sync.ts)', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('adicionar mutação na fila quando offline', async () => {
@@ -36,6 +44,7 @@ describe('Offline Queue (sync.ts)', () => {
     expect(queue.length).toBe(1);
     expect(queue[0].action).toBe('INSERT');
     expect(queue[0].payload).toEqual(payload);
+    expect(queue[0].retryCount).toBe(0);
   });
 
   it('não processar fila se estiver offline', async () => {
@@ -120,6 +129,39 @@ describe('Offline Queue (sync.ts)', () => {
 
     const queue = await db.sync_queue.toArray();
     expect(queue.length).toBe(1); // Should remain in queue
+    expect(queue[0].retryCount).toBe(1);
+  });
+
+  it('remove operação após 3 tentativas e mostra erro ao usuário', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const insertMock = vi.fn().mockResolvedValue({ error: { code: '500', message: 'Server error' } });
+    (supabase.from as any).mockReturnValue({ insert: insertMock });
+
+    await db.sync_queue.add({
+      action: 'INSERT',
+      table: 'analyses',
+      recordId: '1',
+      payload: { id: '1' },
+      timestamp: Date.now(),
+      retryCount: 2,
+    });
+
+    await processQueue();
+
+    const queue = await db.sync_queue.toArray();
+    expect(queue.length).toBe(0);
+    expect(toast.error).toHaveBeenCalledWith('Não foi possível sincronizar alterações. Verifique sua conexão e tente novamente.');
+  });
+
+  it('mostra erro ao usuário quando escrita local falha em queueMutation', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    vi.spyOn(db.analyses, 'put').mockRejectedValueOnce(new Error('dexie_write_fail'));
+
+    await expect(queueMutation('INSERT', 'analyses', '1', { id: '1' })).rejects.toThrow('dexie_write_fail');
+
+    const queue = await db.sync_queue.toArray();
+    expect(queue.length).toBe(0);
+    expect(toast.error).toHaveBeenCalledWith('Não foi possível salvar localmente. Tente novamente.');
   });
 
   it('pullData carrega dados do Supabase', async () => {
@@ -128,7 +170,10 @@ describe('Offline Queue (sync.ts)', () => {
     const analysesData = [{ id: 'a1', user_id: 'u1', file_name: 'Test' }];
     const itemsData = [{ id: 'i1', analysis_id: 'a1', tag: 'T1' }];
 
-    const selectMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
+    const limitMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
+    const orderMock = vi.fn(() => ({ limit: limitMock }));
+    const eqMock = vi.fn(() => ({ order: orderMock }));
+    const selectMock = vi.fn(() => ({ eq: eqMock }));
     const inMock = vi.fn().mockResolvedValue({ data: itemsData, error: null });
 
     (supabase.from as any).mockImplementation((table: string) => {
@@ -137,21 +182,27 @@ describe('Offline Queue (sync.ts)', () => {
       return {};
     });
 
-    await pullData('u1');
+    const result = await pullData('u1');
 
     const localAnalyses = await db.analyses.toArray();
     expect(localAnalyses.length).toBe(1);
     expect(localAnalyses[0].id).toBe('a1');
+    expect(eqMock).toHaveBeenCalledWith('user_id', 'u1');
+    expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(limitMock).toHaveBeenCalledWith(50);
 
     const localItems = await db.analysis_items.toArray();
     expect(localItems.length).toBe(1);
     expect(localItems[0].id).toBe('i1');
+    expect(result.hasMore).toBe(false);
+    expect(result.nextBeforeCreatedAt).toBeUndefined();
   });
 
   it('pullData não faz nada se offline', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
-    await pullData('u1');
+    const result = await pullData('u1');
     const localAnalyses = await db.analyses.toArray();
     expect(localAnalyses.length).toBe(0);
+    expect(result.loaded).toBe(0);
   });
 });

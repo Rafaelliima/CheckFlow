@@ -35,6 +35,9 @@ export default function Dashboard() {
   const [uploadStep, setUploadStep] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState<any>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreRemote, setHasMoreRemote] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const analyses = useLiveQuery(async () => {
@@ -55,12 +58,27 @@ export default function Dashboard() {
       }
       
       setUser(session.user);
-      await pullData(session.user.id);
+      const initialPull = await pullData(session.user.id, { limit: 50 });
+      setHasMoreRemote(initialPull.hasMore);
+      setNextCursor(initialPull.nextBeforeCreatedAt);
       setLoading(false);
     };
     
     checkUserAndFetchData();
   }, [navigate]);
+
+  const handleLoadMore = async () => {
+    if (!user?.id || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+
+    try {
+      const more = await pullData(user.id, { limit: 50, beforeCreatedAt: nextCursor });
+      setHasMoreRemote(more.hasMore);
+      setNextCursor(more.nextBeforeCreatedAt);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -260,6 +278,19 @@ export default function Dashboard() {
             )}
           </ul>
         </div>
+
+        {hasMoreRemote && (
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:opacity-50"
+            >
+              {loadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
