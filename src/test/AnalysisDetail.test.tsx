@@ -82,7 +82,9 @@ describe('AnalysisDetail', () => {
     expect(screen.queryByTestId('realtime-status-tooltip')).not.toBeInTheDocument();
 
     fireEvent.click(realtimeButton);
-    expect(await screen.findByTestId('realtime-status-tooltip')).toHaveTextContent('Atualização em tempo real conectada');
+    expect(await screen.findByTestId('realtime-status-tooltip')).toHaveTextContent(
+      'Conexão ruim. Mantendo sincronização local e monitorando a estabilidade'
+    );
   });
 
   it('botão de editar status altera valor', async () => {

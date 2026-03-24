@@ -14,6 +14,9 @@ const OFFLINE_FAILURE_THRESHOLD = 3;
 const ONLINE_SUCCESS_THRESHOLD = 1;
 const CHANNEL_ERROR_RECONNECT_DELAY_MS = 100;
 const MIN_RECONNECT_GAP_MS = 300;
+const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
+const CIRCUIT_BREAKER_WINDOW_MS = 30000;
+const CIRCUIT_BREAKER_PAUSE_MS = 10000;
 
 export function useRealtimeSync(analysisId: string | undefined) {
   const [status, setStatus] = useState<RealtimeStatus>(() => {
@@ -29,6 +32,9 @@ export function useRealtimeSync(analysisId: string | undefined) {
   const processedEventKeysRef = useRef<Map<string, number>>(new Map());
   const removedChannelsRef = useRef<WeakSet<object>>(new WeakSet());
   const lastReconnectAtRef = useRef(0);
+  const reconnectFailureCountRef = useRef(0);
+  const reconnectFailureWindowStartRef = useRef(0);
+  const circuitOpenUntilRef = useRef(0);
   const heartbeatFailuresRef = useRef(0);
   const heartbeatSuccessesRef = useRef(0);
   const isRealtimeSubscribedRef = useRef(false);
@@ -68,6 +74,35 @@ export function useRealtimeSync(analysisId: string | undefined) {
       if (processedEventKeysRef.current.has(eventKey)) return false;
       processedEventKeysRef.current.set(eventKey, Date.now());
       return true;
+    };
+
+    const registerReconnectFailure = () => {
+      const now = Date.now();
+      if (
+        reconnectFailureWindowStartRef.current === 0 ||
+        now - reconnectFailureWindowStartRef.current > CIRCUIT_BREAKER_WINDOW_MS
+      ) {
+        reconnectFailureWindowStartRef.current = now;
+        reconnectFailureCountRef.current = 1;
+      } else {
+        reconnectFailureCountRef.current += 1;
+      }
+
+      if (reconnectFailureCountRef.current >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+        circuitOpenUntilRef.current = now + CIRCUIT_BREAKER_PAUSE_MS;
+        reconnectFailureCountRef.current = 0;
+        reconnectFailureWindowStartRef.current = 0;
+        addDebugLog('warn', 'Circuit breaker de reconnect ativado', {
+          analysisId,
+          pauseMs: CIRCUIT_BREAKER_PAUSE_MS,
+        });
+      }
+    };
+
+    const resetReconnectFailureTracking = () => {
+      reconnectFailureCountRef.current = 0;
+      reconnectFailureWindowStartRef.current = 0;
+      circuitOpenUntilRef.current = 0;
     };
 
     const removeChannelOnce = (channel: any) => {
@@ -192,7 +227,9 @@ export function useRealtimeSync(analysisId: string | undefined) {
         elapsedSinceLastReconnect >= MIN_RECONNECT_GAP_MS
           ? 0
           : MIN_RECONNECT_GAP_MS - elapsedSinceLastReconnect;
-      const delay = Math.max(baseDelay, debounceDelay);
+      const circuitBreakerDelay =
+        circuitOpenUntilRef.current > now ? circuitOpenUntilRef.current - now : 0;
+      const delay = Math.max(baseDelay, debounceDelay, circuitBreakerDelay);
       reconnectAttemptsRef.current += 1;
       setRetryCount(reconnectAttemptsRef.current);
       updateConnectivityStatus('degraded');
@@ -307,12 +344,14 @@ export function useRealtimeSync(analysisId: string | undefined) {
         if (subscriptionStatus === 'SUBSCRIBED') {
           reconnectAttemptsRef.current = 0;
           setRetryCount(0);
+          resetReconnectFailureTracking();
           isRealtimeSubscribedRef.current = true;
           updateConnectivityStatus(heartbeatSuccessesRef.current > 0 ? 'connected' : 'degraded');
           return;
         }
 
         if (subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CLOSED') {
+          registerReconnectFailure();
           const failedChannel = channelRef.current;
           isRealtimeSubscribedRef.current = false;
           cleanupChannel({ remove: false });

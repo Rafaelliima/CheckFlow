@@ -302,4 +302,33 @@ describe('useRealtimeSync', () => {
     });
     expect(supabase.channel).toHaveBeenCalledTimes(3);
   });
+
+  it('ativa circuit breaker por 10s após 5 falhas em janela curta', async () => {
+    vi.useFakeTimers();
+    statusesQueue = [
+      ['CHANNEL_ERROR'],
+      ['CHANNEL_ERROR'],
+      ['CHANNEL_ERROR'],
+      ['CHANNEL_ERROR'],
+      ['CHANNEL_ERROR'],
+      ['SUBSCRIBED'],
+    ];
+
+    renderHook(() => useRealtimeSync('1'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(5);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(5);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(supabase.channel).toHaveBeenCalledTimes(6);
+  });
 });
