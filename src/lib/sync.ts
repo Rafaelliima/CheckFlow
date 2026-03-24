@@ -8,60 +8,111 @@ const RETRY_BACKOFF_MS = [500, 1000, 2000];
 const DEFAULT_PULL_LIMIT = 50;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+let isQueueProcessing = false;
+let currentProcessingPromise: Promise<void> | null = null;
+
+type SyncProcessingStatus = {
+  isProcessing: boolean;
+  pendingCount: number;
+};
+
+type SyncStatusListener = (status: SyncProcessingStatus) => void;
+const syncStatusListeners = new Set<SyncStatusListener>();
+let currentSyncStatus: SyncProcessingStatus = { isProcessing: false, pendingCount: 0 };
+
+const emitSyncStatus = (status: SyncProcessingStatus) => {
+  currentSyncStatus = status;
+  for (const listener of syncStatusListeners) {
+    listener(status);
+  }
+};
+
+export function subscribeSyncStatus(listener: SyncStatusListener) {
+  syncStatusListeners.add(listener);
+  listener(currentSyncStatus);
+  return () => syncStatusListeners.delete(listener);
+}
 
 export async function processQueue() {
   if (!navigator.onLine) return;
-
-  let queue;
-  try {
-    queue = await db.sync_queue.orderBy('timestamp').toArray();
-  } catch (error) {
-    addDebugLog('error', 'Falha ao ler fila de sync no IndexedDB', error);
-    return;
+  if (isQueueProcessing && currentProcessingPromise) {
+    return currentProcessingPromise;
   }
-  if (queue.length === 0) return;
 
-  for (const op of queue) {
-    let attempt = op.retryCount ?? 0;
-
-    try {
-      if (op.action === 'INSERT') {
-        const { error } = await supabase.from(op.table).insert(op.payload);
-        // Ignore unique violation if it already exists (e.g., synced previously but queue didn't clear)
-        if (error && error.code !== '23505') throw error; 
-      } else if (op.action === 'UPDATE') {
-        const { error } = await supabase.from(op.table).update(op.payload).eq('id', op.recordId);
-        if (error) throw error;
-      } else if (op.action === 'DELETE') {
-        const { error } = await supabase.from(op.table).delete().eq('id', op.recordId);
-        if (error) throw error;
+  isQueueProcessing = true;
+  currentProcessingPromise = (async () => {
+    while (navigator.onLine) {
+      let queue;
+      try {
+        queue = await db.sync_queue.orderBy('timestamp').toArray();
+      } catch (error) {
+        addDebugLog('error', 'Falha ao ler fila de sync no IndexedDB', error);
+        emitSyncStatus({ isProcessing: false, pendingCount: 0 });
+        return;
       }
-      await db.sync_queue.delete(op.id!);
-    } catch (err) {
-      addDebugLog('error', 'Falha ao sincronizar operação da fila', { op, attempt, err });
-      attempt += 1;
-
-      if (attempt >= MAX_RETRIES) {
-        await db.failed_operations.add({
-          action: op.action,
-          table: op.table,
-          recordId: op.recordId,
-          payload: op.payload,
-          timestamp: op.timestamp,
-          retryCount: attempt,
-          failedAt: Date.now(),
-        });
-        await db.sync_queue.delete(op.id!);
-        toast.error('Não foi possível sincronizar alterações. Verifique sua conexão e tente novamente.');
-        addDebugLog('error', 'Operação removida da fila após atingir limite de tentativas', { op, maxRetries: MAX_RETRIES });
-        continue;
+      if (queue.length === 0) {
+        emitSyncStatus({ isProcessing: false, pendingCount: 0 });
+        return;
       }
 
-      await db.sync_queue.update(op.id!, { retryCount: attempt, timestamp: Date.now() });
-      await wait(RETRY_BACKOFF_MS[Math.min(attempt - 1, RETRY_BACKOFF_MS.length - 1)]);
-      break; // Stop processing on first error to maintain order
+      emitSyncStatus({ isProcessing: true, pendingCount: queue.length });
+      let stoppedForError = false;
+
+      for (const op of queue) {
+        let attempt = op.retryCount ?? 0;
+
+        try {
+          if (op.action === 'INSERT') {
+            const { error } = await supabase.from(op.table).insert(op.payload);
+            // Ignore unique violation if it already exists (e.g., synced previously but queue didn't clear)
+            if (error && error.code !== '23505') throw error; 
+          } else if (op.action === 'UPDATE') {
+            const { error } = await supabase.from(op.table).update(op.payload).eq('id', op.recordId);
+            if (error) throw error;
+          } else if (op.action === 'DELETE') {
+            const { error } = await supabase.from(op.table).delete().eq('id', op.recordId);
+            if (error) throw error;
+          }
+          await db.sync_queue.delete(op.id!);
+          const remaining = await db.sync_queue.count();
+          emitSyncStatus({ isProcessing: true, pendingCount: remaining });
+        } catch (err) {
+          addDebugLog('error', 'Falha ao sincronizar operação da fila', { op, attempt, err });
+          attempt += 1;
+
+          if (attempt >= MAX_RETRIES) {
+            await db.failed_operations.add({
+              action: op.action,
+              table: op.table,
+              recordId: op.recordId,
+              payload: op.payload,
+              timestamp: op.timestamp,
+              retryCount: attempt,
+              failedAt: Date.now(),
+            });
+            await db.sync_queue.delete(op.id!);
+            toast.error('Não foi possível sincronizar alterações. Verifique sua conexão e tente novamente.');
+            addDebugLog('error', 'Operação removida da fila após atingir limite de tentativas', { op, maxRetries: MAX_RETRIES });
+            continue;
+          }
+
+          await db.sync_queue.update(op.id!, { retryCount: attempt, timestamp: Date.now() });
+          await wait(RETRY_BACKOFF_MS[Math.min(attempt - 1, RETRY_BACKOFF_MS.length - 1)]);
+          stoppedForError = true;
+          break; // Stop processing on first error to maintain order
+        }
+      }
+
+      const remainingAfterProcessing = await db.sync_queue.count();
+      emitSyncStatus({ isProcessing: false, pendingCount: remainingAfterProcessing });
+      if (stoppedForError || remainingAfterProcessing === 0) return;
     }
-  }
+  })().finally(() => {
+    isQueueProcessing = false;
+    currentProcessingPromise = null;
+  });
+
+  await currentProcessingPromise;
 }
 
 type PullDataOptions = {

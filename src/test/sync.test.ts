@@ -29,7 +29,9 @@ describe('Offline Queue (sync.ts)', () => {
     await db.failed_operations.clear();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    await processQueue();
     vi.clearAllMocks();
     vi.useRealTimers();
   });

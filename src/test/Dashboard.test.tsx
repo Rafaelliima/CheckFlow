@@ -21,6 +21,7 @@ vi.mock('../../src/lib/supabase', () => ({
 }));
 
 let failedOpsCount = 0;
+let syncStatus = { isProcessing: false, pendingCount: 0 };
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn((fn: Function) => {
     if (fn.toString().includes('failed_operations.count')) return failedOpsCount;
@@ -37,6 +38,10 @@ vi.mock('../../src/lib/sync', () => ({
     nextBeforeCreatedAt: null,
   }),
   retryFailedOperations: vi.fn().mockResolvedValue(1),
+  subscribeSyncStatus: vi.fn((listener: any) => {
+    listener(syncStatus);
+    return vi.fn();
+  }),
   queueMutation: vi.fn(),
 }));
 
@@ -44,6 +49,7 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     failedOpsCount = 0;
+    syncStatus = { isProcessing: false, pendingCount: 0 };
     (pullData as any).mockResolvedValue({
       loaded: 1,
       hasMore: false,
@@ -76,8 +82,6 @@ describe('DashboardPage', () => {
   });
 
   it('permite apagar uma análise existente', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-
     render(
       <BrowserRouter>
         <Dashboard />
@@ -86,6 +90,7 @@ describe('DashboardPage', () => {
 
     const deleteButton = await screen.findByTitle('Apagar análise');
     fireEvent.click(deleteButton);
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar exclusão' }));
 
     await waitFor(() => {
       expect(queueMutation).toHaveBeenCalledWith('DELETE', 'analyses', '1', expect.any(Object));
@@ -108,6 +113,17 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(retryFailedOperations).toHaveBeenCalled();
     });
+  });
+
+  it('mostra indicador de sincronização quando processQueue está em execução', async () => {
+    syncStatus = { isProcessing: true, pendingCount: 3 };
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByTestId('syncing-indicator')).toHaveTextContent('Sincronizando 3 itens...');
   });
 });
 

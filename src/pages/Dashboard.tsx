@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [hasMoreRemote, setHasMoreRemote] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [retryingFailedSync, setRetryingFailedSync] = useState(false);
+  const [analysisToDeleteId, setAnalysisToDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
 
@@ -150,32 +151,35 @@ export default function Dashboard() {
       navigate(`/analysis/${analysisId}`);
     } catch (error) {
       console.error('Error processing PDF:', error);
-      alert('Erro ao processar o PDF.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao processar o PDF. Tente novamente.');
     } finally {
       setUploadStep('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleDeleteAnalysis = async (analysisId: string) => {
-    const confirmed = window.confirm('Deseja apagar esta análise e todos os itens vinculados?');
-    if (!confirmed) return;
+  const confirmDeleteAnalysis = (analysisId: string) => {
+    setAnalysisToDeleteId(analysisId);
+  };
 
-    setDeletingAnalysisId(analysisId);
+  const handleDeleteAnalysis = async () => {
+    if (!analysisToDeleteId) return;
+    setDeletingAnalysisId(analysisToDeleteId);
     try {
-      const selectedAnalysis = analyses.find((analysis) => analysis.id === analysisId);
+      const selectedAnalysis = analyses.find((analysis) => analysis.id === analysisToDeleteId);
       const relatedItems = selectedAnalysis?.analysis_items || [];
 
       for (const item of relatedItems) {
         await queueMutation('DELETE', 'analysis_items', item.id, item);
       }
 
-      await queueMutation('DELETE', 'analyses', analysisId, selectedAnalysis || { id: analysisId });
+      await queueMutation('DELETE', 'analyses', analysisToDeleteId, selectedAnalysis || { id: analysisToDeleteId });
     } catch (error) {
       console.error('Error deleting analysis:', error);
-      alert('Erro ao apagar análise.');
+      toast.error('Erro ao apagar análise.');
     } finally {
       setDeletingAnalysisId(null);
+      setAnalysisToDeleteId(null);
     }
   };
 
@@ -296,7 +300,7 @@ export default function Dashboard() {
 
                         <button
                           type="button"
-                          onClick={() => handleDeleteAnalysis(analysis.id)}
+                          onClick={() => confirmDeleteAnalysis(analysis.id)}
                           disabled={deletingAnalysisId === analysis.id}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
                           aria-label={`Apagar análise ${analysis.file_name || analysis.id}`}
@@ -323,6 +327,35 @@ export default function Dashboard() {
             >
               {loadingMore ? 'Carregando...' : 'Carregar mais'}
             </button>
+          </div>
+        )}
+
+        {analysisToDeleteId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-lg">
+              <h3 className="text-base font-semibold text-slate-100">Confirmar exclusão</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                Deseja apagar esta análise e todos os itens vinculados?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAnalysisToDeleteId(null)}
+                  disabled={!!deletingAnalysisId}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAnalysis}
+                  disabled={!!deletingAnalysisId}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-950/50 disabled:opacity-50"
+                >
+                  {deletingAnalysisId ? 'Apagando...' : 'Confirmar exclusão'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from '../lib/supabase';
@@ -49,6 +49,9 @@ export default function AnalysisDetail() {
   // Notes state
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const isNotesFocusedRef = useRef(false);
+  const notesLastSyncedAtRef = useRef<string | null>(null);
+  const pendingRemoteNotesRef = useRef<{ notes: string; updatedAt: string } | null>(null);
 
   // Edit state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -56,9 +59,29 @@ export default function AnalysisDetail() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
-    if (analysis && !notes) {
-      setNotes(analysis.notes || '');
+    if (!analysis) {
+      setLoading(false);
+      return;
     }
+
+    const remoteUpdatedAt = analysis.updated_at || analysis.created_at;
+    const remoteNotes = analysis.notes || '';
+    const hasNeverSynced = notesLastSyncedAtRef.current === null;
+    const isRemoteNewer =
+      hasNeverSynced ||
+      new Date(remoteUpdatedAt).getTime() > new Date(notesLastSyncedAtRef.current || 0).getTime();
+
+    if (!isNotesFocusedRef.current) {
+      setNotes(remoteNotes);
+      notesLastSyncedAtRef.current = remoteUpdatedAt;
+      pendingRemoteNotesRef.current = null;
+    } else if (isRemoteNewer) {
+      pendingRemoteNotesRef.current = {
+        notes: remoteNotes,
+        updatedAt: remoteUpdatedAt,
+      };
+    }
+
     setLoading(false);
   }, [analysis]);
 
@@ -87,7 +110,7 @@ export default function AnalysisDetail() {
       navigate('/dashboard');
     } catch (error) {
       console.error('Error deleting analysis:', error);
-      alert('Erro ao apagar análise.');
+      toast.error('Erro ao apagar análise.');
     } finally {
       setDeletingAnalysis(false);
     }
@@ -102,7 +125,7 @@ export default function AnalysisDetail() {
       await queueMutation('UPDATE', 'analysis_items', itemId, updatedItem);
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Erro ao atualizar status.');
+      toast.error('Erro ao atualizar status.');
     }
   };
 
@@ -112,9 +135,11 @@ export default function AnalysisDetail() {
     try {
       const updatedAnalysis = { ...analysis, notes, updated_at: new Date().toISOString() };
       await queueMutation('UPDATE', 'analyses', id, updatedAnalysis);
+      notesLastSyncedAtRef.current = updatedAnalysis.updated_at;
+      pendingRemoteNotesRef.current = null;
     } catch (error) {
       console.error('Error saving notes:', error);
-      alert('Erro ao salvar notas.');
+      toast.error('Erro ao salvar notas.');
     } finally {
       setSavingNotes(false);
     }
@@ -142,7 +167,7 @@ export default function AnalysisDetail() {
       setEditingItemId(null);
     } catch (error) {
       console.error('Error updating item:', error);
-      alert('Erro ao atualizar item.');
+      toast.error('Erro ao atualizar item.');
     } finally {
       setSavingEdit(false);
     }
@@ -311,6 +336,23 @@ export default function AnalysisDetail() {
                 rows={4}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                onFocus={() => {
+                  isNotesFocusedRef.current = true;
+                }}
+                onBlur={() => {
+                  isNotesFocusedRef.current = false;
+                  const pendingRemote = pendingRemoteNotesRef.current;
+                  if (!pendingRemote) return;
+
+                  const isPendingRemoteNewer =
+                    new Date(pendingRemote.updatedAt).getTime() > new Date(notesLastSyncedAtRef.current || 0).getTime();
+                  if (!isPendingRemoteNewer) return;
+
+                  setNotes(pendingRemote.notes);
+                  notesLastSyncedAtRef.current = pendingRemote.updatedAt;
+                  pendingRemoteNotesRef.current = null;
+                  toast('Notas atualizadas por outro usuário.', { icon: 'ℹ️' });
+                }}
                 className="block w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 shadow-sm transition focus:border-cyan-400 focus:outline-none focus:ring-cyan-500 sm:text-sm"
                 placeholder="Observações gerais sobre esta análise..."
               />

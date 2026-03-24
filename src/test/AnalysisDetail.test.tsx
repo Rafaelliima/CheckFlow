@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { BrowserRouter } from 'react-router-dom';
 import AnalysisDetail, { sortAnalysisItems } from '../../src/pages/AnalysisDetail';
 import { queueMutation, retryFailedOperations } from '../../src/lib/sync';
+import toast from 'react-hot-toast';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -28,13 +29,14 @@ vi.mock('../../src/lib/supabase', () => ({
 }));
 
 let failedOpsCount = 0;
+let analysisRecord = { id: '1', file_name: 'Análise 1', notes: 'Notas iniciais', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' };
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn((fn, deps) => {
     if (fn.toString().includes('failed_operations.count')) {
       return failedOpsCount;
     }
     if (deps && deps[0] === '1' && fn.toString().includes('db.analyses.get')) {
-      return { id: '1', file_name: 'Análise 1', notes: 'Notas iniciais', created_at: '2026-03-21T10:00:00.000Z' };
+      return analysisRecord;
     }
     if (deps && deps[0] === '1' && fn.toString().includes('db.analysis_items')) {
       return [
@@ -50,6 +52,17 @@ vi.mock('dexie-react-hooks', () => ({
 vi.mock('../../src/lib/sync', () => ({
   queueMutation: vi.fn(),
   retryFailedOperations: vi.fn().mockResolvedValue(1),
+  subscribeSyncStatus: vi.fn((listener: any) => {
+    listener({ isProcessing: false, pendingCount: 0 });
+    return vi.fn();
+  }),
+}));
+
+vi.mock('react-hot-toast', () => ({
+  default: Object.assign(vi.fn(), {
+    error: vi.fn(),
+    success: vi.fn(),
+  }),
 }));
 
 // Mock PDFDownloadLink
@@ -66,6 +79,13 @@ describe('AnalysisDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     failedOpsCount = 0;
+    analysisRecord = {
+      id: '1',
+      file_name: 'Análise 1',
+      notes: 'Notas iniciais',
+      created_at: '2026-03-21T10:00:00.000Z',
+      updated_at: '2026-03-21T10:00:00.000Z',
+    };
   });
 
   it('renderiza itens, remove badge colaborativo e mostra ícone discreto de realtime', async () => {
@@ -168,6 +188,36 @@ describe('AnalysisDetail', () => {
     await waitFor(() => {
       expect(retryFailedOperations).toHaveBeenCalled();
     });
+  });
+
+  it('aplica notas remotas apenas quando textarea perde foco e mostra aviso discreto', async () => {
+    const { rerender } = render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const textarea = await screen.findByPlaceholderText('Observações gerais sobre esta análise...');
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, { target: { value: 'Editando localmente' } });
+
+    analysisRecord = {
+      ...analysisRecord,
+      notes: 'Notas remotas mais novas',
+      updated_at: '2026-03-21T11:00:00.000Z',
+    };
+    rerender(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect((await screen.findByPlaceholderText('Observações gerais sobre esta análise...') as HTMLTextAreaElement).value).toBe('Editando localmente');
+
+    fireEvent.blur(textarea);
+
+    expect((await screen.findByPlaceholderText('Observações gerais sobre esta análise...') as HTMLTextAreaElement).value).toBe('Notas remotas mais novas');
+    expect(toast).toHaveBeenCalledWith('Notas atualizadas por outro usuário.', { icon: 'ℹ️' });
   });
 
   it('ordena itens com pendentes no topo e divergências por último', async () => {
