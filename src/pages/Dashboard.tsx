@@ -10,7 +10,7 @@ import { db } from '../lib/db';
 import { pullData, queueMutation, retryFailedOperations } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { Clock, Trash2, Upload, User as UserIcon } from 'lucide-react';
+import { Clock, FilePlus, FileText, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 
@@ -271,7 +271,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
       <OfflineIndicator />
-      <Header title="CheckFlow Dashboard" />
+      <Header title="Dashboard" userEmail={user?.email} />
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
@@ -328,8 +328,23 @@ export default function Dashboard() {
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
           <ul className="divide-y divide-slate-800">
             {mergedAnalyses.length === 0 ? (
-              <li className="px-4 py-12 text-center text-slate-400">
-                Nenhuma análise encontrada.
+              <li className="px-4 py-12 text-center">
+                <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-3">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-900">
+                    <FilePlus className="h-10 w-10 text-slate-600" />
+                  </div>
+                  {debouncedSearchQuery.length >= 2 ? (
+                    <>
+                      <p className="text-sm text-slate-400">Nenhuma análise encontrada para essa busca</p>
+                      <p className="text-xs text-slate-600">Tente outro termo ou limpe a busca</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-400">Nenhuma análise ainda</p>
+                      <p className="text-xs text-slate-600">Faça upload de um PDF ou crie uma análise manual</p>
+                    </>
+                  )}
+                </div>
               </li>
             ) : (
               mergedAnalyses.map((analysis) => {
@@ -341,13 +356,16 @@ export default function Dashboard() {
                   <li key={analysis.id}>
                     <div className="px-4 py-4 sm:px-6">
                       <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 ${progressPercent === 100 ? 'text-emerald-400' : 'text-cyan-400'}`}>
+                          <FileText className="h-4 w-4" />
+                        </div>
                         <Link to={`/analysis/${analysis.id}`} className="min-w-0 flex-1">
                           <div className="mb-2 flex items-center justify-between">
                             <p className="truncate pr-4 text-base font-medium text-cyan-300">
                               {analysis.file_name || 'Análise sem nome'}
                             </p>
                             <div className="flex-shrink-0">
-                              <p className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5 ${progressPercent === 100 ? 'bg-emerald-950/40 text-emerald-300' : 'bg-cyan-950/50 text-cyan-200'}`}>
+                              <p className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold leading-none ${progressPercent === 100 ? 'bg-emerald-950/40 text-emerald-300' : 'bg-cyan-950/50 text-cyan-200'}`}>
                                 {progressPercent}%
                               </p>
                             </div>

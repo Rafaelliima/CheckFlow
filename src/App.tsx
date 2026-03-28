@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { useEffect } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -33,19 +33,19 @@ export default function App() {
     return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">Carregando...</div>;
   }
 
+  const router = createBrowserRouter([
+    { path: '/', element: session ? <Navigate to="/dashboard" replace /> : <Login /> },
+    { path: '/register', element: session ? <Navigate to="/dashboard" replace /> : <Register /> },
+    { path: '/dashboard', element: session ? <Dashboard /> : <Navigate to="/" replace /> },
+    { path: '/analysis/:id', element: session ? <AnalysisDetail /> : <Navigate to="/" replace /> },
+  ]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <DebugLogger />
       <Toaster position="top-right" />
       <ErrorBoundary>
-        <Router>
-          <Routes>
-            <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
-            <Route path="/register" element={session ? <Navigate to="/dashboard" replace /> : <Register />} />
-            <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/" replace />} />
-            <Route path="/analysis/:id" element={session ? <AnalysisDetail /> : <Navigate to="/" replace />} />
-          </Routes>
-        </Router>
+        <RouterProvider router={router} />
       </ErrorBoundary>
     </div>
   );

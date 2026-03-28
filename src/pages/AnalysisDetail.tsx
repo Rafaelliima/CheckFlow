@@ -11,7 +11,7 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
-import { Search, X, Edit2, CheckCircle, AlertTriangle, Clock, FileDown, Trash2 } from 'lucide-react';
+import { Search, X, Edit2, FileDown, Trash2 } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
 import toast from 'react-hot-toast';
 
@@ -30,6 +30,21 @@ export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'creat
   });
 }
 
+function statusBorderClass(status: string) {
+  if (status === 'OK') return 'border-l-emerald-500';
+  if (status === 'Divergência') return 'border-l-red-500';
+  return 'border-l-amber-500';
+}
+
+function statusToggleClass(buttonStatus: string, currentStatus: string) {
+  if (buttonStatus === currentStatus) {
+    if (buttonStatus === 'Pendente') return 'bg-amber-950/60 text-amber-400';
+    if (buttonStatus === 'OK') return 'bg-emerald-950/50 text-emerald-400';
+    return 'bg-red-950/50 text-red-400';
+  }
+  return 'bg-transparent text-slate-600 hover:text-slate-400';
+}
+
 export default function AnalysisDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -45,6 +60,7 @@ export default function AnalysisDetail() {
   
   const [deletingAnalysis, setDeletingAnalysis] = useState(false);
   const [retryingFailedSync, setRetryingFailedSync] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
   // Notes state
   const [notes, setNotes] = useState('');
@@ -59,6 +75,17 @@ export default function AnalysisDetail() {
   const [savingEdit, setSavingEdit] = useState(false);
   const hasUnsavedChanges = editingItemId !== null || notes !== (analysis?.notes || '');
   const navigationBlocker = useBlocker(hasUnsavedChanges);
+
+  useEffect(() => {
+    const loadSessionEmail = async () => {
+      const auth = supabase.auth;
+      if (!auth?.getSession) return;
+      const { data: { session } } = await auth.getSession();
+      setUserEmail(session?.user?.email);
+    };
+
+    loadSessionEmail();
+  }, []);
 
   useEffect(() => {
     if (!analysis) {
@@ -223,6 +250,7 @@ export default function AnalysisDetail() {
       <OfflineIndicator />
       <Header
         title={analysis.file_name || 'Análise'}
+        userEmail={userEmail}
         mobileMenuChildren={(
           <>
             <PDFDownloadLink
@@ -437,7 +465,7 @@ export default function AnalysisDetail() {
                             </td>
                           ) : (
                             <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-100">
+                              <td className={`whitespace-nowrap border-l-[3px] px-5 py-4 text-sm font-medium text-slate-100 ${statusBorderClass(item.status)}`}>
                                 <div className="flex items-center">
                                   {item.tag}
                                   <button onClick={() => startEditing(item)} className="ml-2 p-1 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
@@ -462,28 +490,21 @@ export default function AnalysisDetail() {
                                 </span>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => handleUpdateStatus(item.id, 'OK')}
-                                    className="rounded-lg p-2 text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
-                                    title="Marcar como OK"
-                                  >
-                                    <CheckCircle className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateStatus(item.id, 'Divergência')}
-                                    className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
-                                    title="Marcar Divergência"
-                                  >
-                                    <AlertTriangle className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateStatus(item.id, 'Pendente')}
-                                    className="rounded-lg p-2 text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30"
-                                    title="Marcar como Pendente"
-                                  >
-                                    <Clock className="w-5 h-5" />
-                                  </button>
+                                <div className="inline-flex overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                                  {(['Pendente', 'OK', 'Divergência'] as const).map((statusOption) => (
+                                    <button
+                                      key={statusOption}
+                                      onClick={() => {
+                                        if (statusOption !== item.status) {
+                                          handleUpdateStatus(item.id, statusOption);
+                                        }
+                                      }}
+                                      title={`Marcar como ${statusOption}`}
+                                      className={`min-h-[36px] px-3 text-xs font-semibold transition ${statusToggleClass(statusOption, item.status)}`}
+                                    >
+                                      {statusOption}
+                                    </button>
+                                  ))}
                                 </div>
                               </td>
                             </>
@@ -503,7 +524,7 @@ export default function AnalysisDetail() {
                   </div>
                 ) : (
                   filteredItems.map((item) => (
-                    <div key={item.id} className={`p-4 ${item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}`}>
+                    <div key={item.id} className={`border-l-[3px] p-4 ${statusBorderClass(item.status)} ${item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}`}>
                       {editingItemId === item.id ? (
                         <div className="space-y-4">
                           <div>
@@ -559,25 +580,21 @@ export default function AnalysisDetail() {
                             <div><span className="font-medium">Pat:</span> {item.patrimonio || 'N/A'}</div>
                             <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie || 'N/A'}</div>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleUpdateStatus(item.id, 'OK')}
-                              className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
-                            >
-                              <CheckCircle className="w-4 h-4" /> OK
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(item.id, 'Divergência')}
-                              className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
-                            >
-                              <AlertTriangle className="w-4 h-4" /> Diverg.
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(item.id, 'Pendente')}
-                              className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
-                            >
-                              <Clock className="w-4 h-4" /> Pend.
-                            </button>
+                          <div className="inline-flex w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                            {(['Pendente', 'OK', 'Divergência'] as const).map((statusOption) => (
+                              <button
+                                key={statusOption}
+                                onClick={() => {
+                                  if (statusOption !== item.status) {
+                                    handleUpdateStatus(item.id, statusOption);
+                                  }
+                                }}
+                                title={`Marcar como ${statusOption}`}
+                                className={`min-h-[40px] flex-1 px-2 text-xs font-semibold transition ${statusToggleClass(statusOption, item.status)}`}
+                              >
+                                {statusOption}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       )}
