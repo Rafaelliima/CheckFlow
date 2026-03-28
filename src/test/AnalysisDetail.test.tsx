@@ -5,11 +5,24 @@ import AnalysisDetail, { sortAnalysisItems } from '../../src/pages/AnalysisDetai
 import { queueMutation, retryFailedOperations } from '../../src/lib/sync';
 import toast from 'react-hot-toast';
 
+let blockerState: 'unblocked' | 'blocked' = 'unblocked';
+const proceedMock = vi.fn();
+const resetMock = vi.fn();
+const beforeUnloadHandlers: ((event: BeforeUnloadEvent) => void)[] = [];
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual as any,
     useParams: () => ({ id: '1' }),
+    useBeforeUnload: vi.fn((handler: (event: BeforeUnloadEvent) => void) => {
+      beforeUnloadHandlers.push(handler);
+    }),
+    useBlocker: vi.fn(() => ({
+      state: blockerState,
+      proceed: proceedMock,
+      reset: resetMock,
+    })),
   };
 });
 
@@ -78,6 +91,8 @@ vi.mock('@react-pdf/renderer', () => ({
 describe('AnalysisDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    blockerState = 'unblocked';
+    beforeUnloadHandlers.length = 0;
     failedOpsCount = 0;
     analysisRecord = {
       id: '1',
@@ -218,6 +233,39 @@ describe('AnalysisDetail', () => {
 
     expect((await screen.findByPlaceholderText('Observações gerais sobre esta análise...') as HTMLTextAreaElement).value).toBe('Notas remotas mais novas');
     expect(toast).toHaveBeenCalledWith('Notas atualizadas por outro usuário.', { icon: 'ℹ️' });
+  });
+
+  it('bloqueia navegação com modal quando há edição não salva', async () => {
+    blockerState = 'blocked';
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText('Sair sem salvar?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar editando' }));
+    expect(resetMock).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair sem salvar' }));
+    expect(proceedMock).toHaveBeenCalled();
+  });
+
+  it('registra proteção beforeunload quando há alterações não salvas', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const textarea = await screen.findByPlaceholderText('Observações gerais sobre esta análise...');
+    fireEvent.change(textarea, { target: { value: 'Alteração local não salva' } });
+
+    const event = { preventDefault: vi.fn(), returnValue: undefined as string | undefined } as unknown as BeforeUnloadEvent;
+    beforeUnloadHandlers[0]?.(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.returnValue).toBe('');
   });
 
   it('ordena itens com pendentes no topo e divergências por último', async () => {

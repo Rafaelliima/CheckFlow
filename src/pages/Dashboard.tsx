@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Analysis } from '../types';
+import { Analysis, AnalysisItem } from '../types';
 import { extractTextFromPDF } from '../lib/pdf';
 import { extractEquipmentFromText } from '../lib/gemini';
 import { db } from '../lib/db';
@@ -30,12 +30,18 @@ export function normalizeImportedItem(item: {
   };
 }
 
+type DashboardAnalysis = Analysis & { analysis_items: AnalysisItem[] };
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [remoteSearchResults, setRemoteSearchResults] = useState<Analysis[]>([]);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [user, setUser] = useState<User | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreRemote, setHasMoreRemote] = useState(false);
@@ -45,7 +51,7 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
 
-  const analyses = useLiveQuery(async () => {
+  const analyses = useLiveQuery(async (): Promise<DashboardAnalysis[]> => {
     const ans = await db.analyses.orderBy('created_at').reverse().toArray();
     const items = await db.analysis_items.toArray();
     return ans.map(a => ({
@@ -71,6 +77,66 @@ export default function Dashboard() {
     
     checkUserAndFetchData();
   }, [navigate]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id || !isOnline || debouncedSearchQuery.length < 2) {
+      setIsSearchingRemote(false);
+      setRemoteSearchResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearchingRemote(true);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('analyses')
+          .select('*')
+          .eq('user_id', user.id)
+          .ilike('file_name', `%${debouncedSearchQuery}%`)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (cancelled) return;
+        if (error) {
+          toast.error('Falha ao buscar análises remotas.');
+          setRemoteSearchResults([]);
+        } else {
+          setRemoteSearchResults((data || []) as Analysis[]);
+        }
+      } catch {
+        if (cancelled) return;
+        toast.error('Falha ao buscar análises remotas.');
+        setRemoteSearchResults([]);
+      } finally {
+        if (cancelled) return;
+        setIsSearchingRemote(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearchQuery, isOnline, user?.id]);
 
   const handleLoadMore = async () => {
     if (!user?.id || !nextCursor || loadingMore) return;
@@ -188,10 +254,20 @@ export default function Dashboard() {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
 
-  const normalizedQuery = searchQuery.toLowerCase();
-  const filteredAnalyses = analyses.filter((analysis) =>
+  const normalizedQuery = debouncedSearchQuery.toLowerCase();
+  const localFilteredAnalyses = analyses.filter((analysis) =>
     (analysis.file_name || '').toLowerCase().includes(normalizedQuery)
   );
+  const mergedAnalyses = (() => {
+    if (!isOnline || debouncedSearchQuery.length < 2) return localFilteredAnalyses;
+    const mapById = new Map(localFilteredAnalyses.map((analysis) => [analysis.id, analysis]));
+    for (const remoteAnalysis of remoteSearchResults) {
+      if (!mapById.has(remoteAnalysis.id)) {
+        mapById.set(remoteAnalysis.id, { ...remoteAnalysis, analysis_items: [] });
+      }
+    }
+    return Array.from(mapById.values());
+  })();
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
@@ -252,12 +328,12 @@ export default function Dashboard() {
 
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
           <ul className="divide-y divide-slate-800">
-            {filteredAnalyses.length === 0 ? (
+            {mergedAnalyses.length === 0 ? (
               <li className="px-4 py-12 text-center text-slate-400">
                 Nenhuma análise encontrada.
               </li>
             ) : (
-              filteredAnalyses.map((analysis) => {
+              mergedAnalyses.map((analysis) => {
                 const totalItems = analysis.analysis_items?.length || 0;
                 const completedItems = analysis.analysis_items?.filter(i => i.status !== 'Pendente').length || 0;
                 const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
@@ -317,6 +393,9 @@ export default function Dashboard() {
             )}
           </ul>
         </div>
+        {isSearchingRemote && (
+          <p className="mt-2 text-center text-xs text-slate-400">Buscando...</p>
+        )}
 
         {hasMoreRemote && (
           <div className="mt-4 flex justify-center">

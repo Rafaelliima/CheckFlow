@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useBeforeUnload, useBlocker } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from '../lib/supabase';
 import { AnalysisItem } from '../types';
@@ -57,6 +57,8 @@ export default function AnalysisDetail() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AnalysisItem>>({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const hasUnsavedChanges = editingItemId !== null || notes !== (analysis?.notes || '');
+  const navigationBlocker = useBlocker(hasUnsavedChanges);
 
   useEffect(() => {
     if (!analysis) {
@@ -187,6 +189,12 @@ export default function AnalysisDetail() {
       setRetryingFailedSync(false);
     }
   };
+
+  useBeforeUnload((event) => {
+    if (!hasUnsavedChanges) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
@@ -581,6 +589,33 @@ export default function AnalysisDetail() {
           </div>
         </div>
       </main>
+
+      {navigationBlocker.state === 'blocked' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-lg">
+            <h3 className="text-base font-semibold text-slate-100">Sair sem salvar?</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Você tem edições não salvas. Se sair agora, as alterações em andamento podem ser perdidas.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => navigationBlocker.reset()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+              >
+                Continuar editando
+              </button>
+              <button
+                type="button"
+                onClick={() => navigationBlocker.proceed()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-rose-900/60 bg-rose-950/30 px-4 py-2 text-sm font-medium text-rose-200 hover:bg-rose-950/50"
+              >
+                Sair sem salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -12,11 +12,23 @@ vi.mock('../../src/lib/gemini', () => ({
   extractEquipmentFromText: vi.fn(),
 }));
 
+let remoteSearchData: any[] = [];
 vi.mock('../../src/lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } }),
     },
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          ilike: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue({ data: remoteSearchData, error: null }),
+            })),
+          })),
+        })),
+      })),
+    })),
   },
 }));
 
@@ -50,6 +62,7 @@ describe('DashboardPage', () => {
     vi.clearAllMocks();
     failedOpsCount = 0;
     syncStatus = { isProcessing: false, pendingCount: 0 };
+    remoteSearchData = [];
     (pullData as any).mockResolvedValue({
       loaded: 1,
       hasMore: false,
@@ -124,6 +137,29 @@ describe('DashboardPage', () => {
     );
 
     expect(await screen.findByTestId('syncing-indicator')).toHaveTextContent('Sincronizando 3 itens...');
+  });
+
+  it('aplica debounce e complementa busca local com resultado remoto quando online', async () => {
+    remoteSearchData = [
+      {
+        id: '2',
+        file_name: 'Relatório Remoto',
+        created_at: '2026-03-21T11:00:00.000Z',
+        updated_at: '2026-03-21T11:00:00.000Z',
+        created_by_email: 'remoto@email.com',
+      },
+    ];
+
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Buscar análise...'), { target: { value: 're' } });
+    await waitFor(() => {
+      expect(screen.getByText('Relatório Remoto')).toBeInTheDocument();
+    });
   });
 });
 
