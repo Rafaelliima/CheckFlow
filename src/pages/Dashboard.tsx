@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Analysis } from '../types';
 import { extractTextFromPDF } from '../lib/pdf';
@@ -9,7 +10,7 @@ import { db } from '../lib/db';
 import { pullData, queueMutation, retryFailedOperations } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { Clock, Trash2, Upload, User } from 'lucide-react';
+import { Clock, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 
@@ -35,7 +36,7 @@ export default function Dashboard() {
   const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreRemote, setHasMoreRemote] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -284,7 +285,7 @@ export default function Dashboard() {
                                 {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                               </p>
                               <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                                <User className="h-3 w-3" />
+                                <UserIcon className="h-3 w-3" />
                                 <span>{analysis.created_by_email || 'Usuário'}</span>
                               </div>
                             </div>
