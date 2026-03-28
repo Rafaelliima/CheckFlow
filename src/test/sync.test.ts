@@ -204,8 +204,7 @@ describe('Offline Queue (sync.ts)', () => {
 
     const limitMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
     const orderMock = vi.fn(() => ({ limit: limitMock }));
-    const eqMock = vi.fn(() => ({ order: orderMock }));
-    const selectMock = vi.fn(() => ({ eq: eqMock }));
+    const selectMock = vi.fn(() => ({ order: orderMock }));
     const inMock = vi.fn().mockResolvedValue({ data: itemsData, error: null });
 
     (supabase.from as any).mockImplementation((table: string) => {
@@ -219,7 +218,6 @@ describe('Offline Queue (sync.ts)', () => {
     const localAnalyses = await db.analyses.toArray();
     expect(localAnalyses.length).toBe(1);
     expect(localAnalyses[0].id).toBe('a1');
-    expect(eqMock).toHaveBeenCalledWith('user_id', 'u1');
     expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(limitMock).toHaveBeenCalledWith(50);
 

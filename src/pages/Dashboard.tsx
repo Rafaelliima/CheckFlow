@@ -111,7 +111,6 @@ export default function Dashboard() {
         const { data, error } = await supabase
           .from('analyses')
           .select('*')
-          .eq('user_id', user.id)
           .ilike('file_name', `%${debouncedSearchQuery}%`)
           .order('created_at', { ascending: false })
           .limit(20);

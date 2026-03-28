@@ -20,11 +20,9 @@ vi.mock('../../src/lib/supabase', () => ({
     },
     from: vi.fn(() => ({
       select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          ilike: vi.fn(() => ({
-            order: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue({ data: remoteSearchData, error: null }),
-            })),
+        ilike: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({ data: remoteSearchData, error: null }),
           })),
         })),
       })),

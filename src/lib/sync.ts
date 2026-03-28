@@ -141,7 +141,6 @@ export async function pullData(userId: string, options?: PullDataOptions): Promi
     let analysesQuery = supabase
       .from('analyses')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
