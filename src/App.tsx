@@ -8,6 +8,7 @@ import { processQueue } from './lib/sync';
 import { Toaster } from 'react-hot-toast';
 import { DebugLogger } from './components/DebugLogger';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { InstallBanner } from './components/InstallBanner';
 import { useAuth } from './hooks/useAuth';
 import { addDebugLog } from './lib/debug';
 
@@ -44,6 +45,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <DebugLogger />
       <Toaster position="top-right" />
+      <InstallBanner />
       <ErrorBoundary>
         <RouterProvider router={router} />
       </ErrorBoundary>
