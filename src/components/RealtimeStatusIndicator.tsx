@@ -4,6 +4,8 @@ import { RealtimeStatus } from '../hooks/useRealtimeSync';
 
 interface RealtimeStatusIndicatorProps {
   status: RealtimeStatus;
+  variant?: 'default' | 'compact';
+  className?: string;
 }
 
 const STATUS_CONFIG: Record<Exclude<RealtimeStatus, 'idle'>, {
@@ -38,7 +40,7 @@ const STATUS_CONFIG: Record<Exclude<RealtimeStatus, 'idle'>, {
   },
 };
 
-export function RealtimeStatusIndicator({ status }: RealtimeStatusIndicatorProps) {
+export function RealtimeStatusIndicator({ status, variant = 'default', className = '' }: RealtimeStatusIndicatorProps) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -64,9 +66,21 @@ export function RealtimeStatusIndicator({ status }: RealtimeStatusIndicatorProps
 
   const Icon = config.icon;
   const animated = status === 'connecting';
+  const compactStatusClass = status === 'connected' ? 'bg-emerald-400' : status === 'connecting' || status === 'degraded' ? 'bg-amber-400' : 'bg-red-400';
+
+  if (variant === 'compact') {
+    return (
+      <span
+        className={`inline-block h-2 w-2 rounded-full ${compactStatusClass} ${status === 'connecting' ? 'animate-pulse' : ''} ${className}`}
+        title={config.label}
+        aria-label={config.label}
+        data-testid="realtime-status-dot"
+      />
+    );
+  }
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={`relative ${className}`} ref={containerRef}>
       <button
         type="button"
         className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-200 bg-white/95 shadow-sm transition-colors hover:bg-slate-50 ${config.className}`}

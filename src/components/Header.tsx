@@ -8,6 +8,7 @@ interface HeaderProps {
   children?: React.ReactNode;
   mobileMenuChildren?: React.ReactNode;
   userEmail?: string;
+  mobileStatusIndicator?: React.ReactNode;
 }
 
 function getUserInitials(email?: string) {
@@ -23,7 +24,7 @@ function getUserInitials(email?: string) {
   return localPart.slice(0, 2).toUpperCase() || '??';
 }
 
-export function Header({ title, children, mobileMenuChildren, userEmail }: HeaderProps) {
+export function Header({ title, children, mobileMenuChildren, userEmail, mobileStatusIndicator }: HeaderProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const userInitials = getUserInitials(userEmail);
@@ -36,20 +37,20 @@ export function Header({ title, children, mobileMenuChildren, userEmail }: Heade
   return (
     <nav className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 shadow-sm backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex min-h-16 flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
-          <div className="flex min-w-0 items-center">
-            <Link to="/dashboard" className="mr-3 flex shrink-0 items-center gap-2 text-blue-400 transition hover:text-cyan-300 sm:mr-4">
+        <div className="flex h-14 items-center justify-between sm:h-16">
+          <div className="flex min-w-0 flex-1 items-center">
+            <Link to="/dashboard" className="mr-2 flex shrink-0 items-center gap-2 text-blue-400 transition hover:text-cyan-300 sm:mr-4">
               <Home className="h-5 w-5" />
               <span className="hidden font-medium sm:inline">Início</span>
             </Link>
-            <div className="min-w-0 flex-1 break-words text-base font-bold leading-5 sm:max-w-md sm:truncate sm:text-xl sm:leading-none">
+            <div className="min-w-0 flex-1 truncate text-sm font-bold leading-none sm:max-w-md sm:text-xl">
               <span className="font-semibold text-slate-100">CheckFlow</span>
               <span className="px-2 text-slate-600">/</span>
-              <span className="font-medium text-slate-400">{title}</span>
+              <span className="inline-block max-w-[55vw] truncate align-bottom font-medium text-slate-400 sm:max-w-none">{title}</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end sm:gap-4">
+          <div className="ml-2 flex shrink-0 items-center gap-2 sm:gap-4">
             {children}
             <div
               className="hidden h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-cyan-300 sm:inline-flex"
@@ -65,9 +66,12 @@ export function Header({ title, children, mobileMenuChildren, userEmail }: Heade
               <LogOut className="h-4 w-4" />
               Sair
             </button>
+            <div className="sm:hidden">
+              {mobileStatusIndicator}
+            </div>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="ml-auto rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-cyan-300 sm:hidden"
+              className="rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-cyan-300 sm:hidden"
               aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}

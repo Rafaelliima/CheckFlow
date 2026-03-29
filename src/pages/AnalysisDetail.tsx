@@ -251,6 +251,7 @@ export default function AnalysisDetail() {
       <Header
         title={analysis.file_name || 'Análise'}
         userEmail={userEmail}
+        mobileStatusIndicator={<RealtimeStatusIndicator status={realtimeStatus} variant="compact" />}
         mobileMenuChildren={(
           <>
             <PDFDownloadLink
@@ -277,7 +278,7 @@ export default function AnalysisDetail() {
           </>
         )}
       >
-        <RealtimeStatusIndicator status={realtimeStatus} />
+        <RealtimeStatusIndicator status={realtimeStatus} className="hidden sm:block" />
         <button
           type="button"
           onClick={handleDeleteAnalysis}
