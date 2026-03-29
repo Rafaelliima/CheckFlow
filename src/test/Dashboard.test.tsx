@@ -177,3 +177,19 @@ it('normaliza importação trocando patrimônio e número de série para o forma
     numero_serie: 'NS-123',
   });
 });
+
+it('normaliza importação decodificando entidades HTML', () => {
+  expect(normalizeImportedItem({
+    tag: 'INFUS&Atilde;O',
+    descricao: 'OTOSC&Oacute;PIO',
+    modelo: 'TERMOHIGR&Ocirc;METRO',
+    patrimonio: 'S&Eacute;RIE-02',
+    numero_serie: 'PATRIM&Ocirc;NIO-01',
+  })).toEqual({
+    tag: 'INFUSÃO',
+    descricao: 'OTOSCÓPIO',
+    modelo: 'TERMOHIGRÔMETRO',
+    patrimonio: 'PATRIMÔNIO-01',
+    numero_serie: 'SÉRIE-02',
+  });
+});

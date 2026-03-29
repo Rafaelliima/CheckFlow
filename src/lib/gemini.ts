@@ -3,6 +3,23 @@ import { GoogleGenAI, Type } from '@google/genai';
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 export const GEMINI_MODEL = 'gemini-3-flash-preview';
 
+export function decodeHtmlEntities(text: string): string {
+  if (typeof DOMParser === 'undefined') return text;
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  return doc.documentElement.textContent ?? text;
+}
+
+export function sanitizeExtractedItems(items: any[]) {
+  return items.map((item) => ({
+    ...item,
+    tag: typeof item.tag === 'string' ? decodeHtmlEntities(item.tag) : item.tag,
+    descricao: typeof item.descricao === 'string' ? decodeHtmlEntities(item.descricao) : item.descricao,
+    modelo: typeof item.modelo === 'string' ? decodeHtmlEntities(item.modelo) : item.modelo,
+    patrimonio: typeof item.patrimonio === 'string' ? decodeHtmlEntities(item.patrimonio) : item.patrimonio,
+    numero_serie: typeof item.numero_serie === 'string' ? decodeHtmlEntities(item.numero_serie) : item.numero_serie,
+  }));
+}
+
 export async function extractEquipmentFromText(text: string) {
   try {
     const response = await ai.models.generateContent({
@@ -28,7 +45,8 @@ export async function extractEquipmentFromText(text: string) {
       }
     });
 
-    return JSON.parse(response.text || '[]');
+    const parsed = JSON.parse(response.text || '[]');
+    return sanitizeExtractedItems(parsed);
   } catch (e) {
     throw new Error('Não foi possível processar a extração de equipamentos com IA. Tente novamente.');
   }

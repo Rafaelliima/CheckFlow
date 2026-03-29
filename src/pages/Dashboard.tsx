@@ -13,6 +13,11 @@ import { OfflineIndicator } from '../components/OfflineIndicator';
 import { Clock, FilePlus, FileText, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+function decodeHtmlEntities(text: string): string {
+  if (typeof DOMParser === 'undefined') return text;
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  return doc.documentElement.textContent ?? text;
+}
 
 export function normalizeImportedItem(item: {
   tag?: string;
@@ -21,12 +26,18 @@ export function normalizeImportedItem(item: {
   patrimonio?: string;
   numero_serie?: string;
 }) {
+  const tag = decodeHtmlEntities(item.tag || 'N/A');
+  const descricao = decodeHtmlEntities(item.descricao || 'N/A');
+  const modelo = decodeHtmlEntities(item.modelo || 'N/A');
+  const patrimonio = decodeHtmlEntities(item.numero_serie || item.patrimonio || 'N/A');
+  const numeroSerie = decodeHtmlEntities(item.patrimonio || item.numero_serie || 'N/A');
+
   return {
-    tag: item.tag || 'N/A',
-    descricao: item.descricao || 'N/A',
-    modelo: item.modelo || 'N/A',
-    patrimonio: item.numero_serie || item.patrimonio || 'N/A',
-    numero_serie: item.patrimonio || item.numero_serie || 'N/A',
+    tag,
+    descricao,
+    modelo,
+    patrimonio,
+    numero_serie: numeroSerie,
   };
 }
 
