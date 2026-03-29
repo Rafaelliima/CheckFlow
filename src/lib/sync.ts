@@ -136,6 +136,7 @@ export async function pullData(userId: string, options?: PullDataOptions): Promi
   }
 
   const limit = options?.limit ?? DEFAULT_PULL_LIMIT;
+  const isInitialPull = !options?.beforeCreatedAt;
 
   try {
     let analysesQuery = supabase
@@ -153,6 +154,21 @@ export async function pullData(userId: string, options?: PullDataOptions): Promi
     
     if (analyses) {
       await db.analyses.bulkPut(analyses);
+
+      const serverAnalysisIds = new Set(analyses.map((analysis) => analysis.id));
+      if (isInitialPull) {
+        const localAnalyses = await db.analyses.toArray();
+        const staleAnalysisIds = localAnalyses
+          .map((analysis) => analysis.id)
+          .filter((id) => !serverAnalysisIds.has(id));
+
+        if (staleAnalysisIds.length > 0) {
+          await db.transaction('rw', db.analyses, db.analysis_items, async () => {
+            await db.analyses.bulkDelete(staleAnalysisIds);
+            await db.analysis_items.where('analysis_id').anyOf(staleAnalysisIds).delete();
+          });
+        }
+      }
       
       // Pull items
       if (analyses.length > 0) {
@@ -161,6 +177,18 @@ export async function pullData(userId: string, options?: PullDataOptions): Promi
         if (itError) throw itError;
         if (items) {
           await db.analysis_items.bulkPut(items);
+
+          if (isInitialPull) {
+            const serverItemIds = new Set(items.map((item) => item.id));
+            const localItemsFromPulledAnalyses = await db.analysis_items.where('analysis_id').anyOf(analysisIds).toArray();
+            const staleItemIds = localItemsFromPulledAnalyses
+              .map((item) => item.id)
+              .filter((id) => !serverItemIds.has(id));
+
+            if (staleItemIds.length > 0) {
+              await db.analysis_items.bulkDelete(staleItemIds);
+            }
+          }
         }
       }
 

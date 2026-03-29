@@ -228,6 +228,42 @@ describe('Offline Queue (sync.ts)', () => {
     expect(result.nextBeforeCreatedAt).toBeUndefined();
   });
 
+  it('pullData reconcilia Dexie na carga inicial e remove análises/itens ausentes no servidor', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+
+    await db.analyses.bulkPut([
+      { id: 'a1', user_id: 'u1', file_name: 'Mantida', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' } as any,
+      { id: 'a2', user_id: 'u1', file_name: 'Remover', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' } as any,
+    ]);
+    await db.analysis_items.bulkPut([
+      { id: 'i1', analysis_id: 'a1', tag: 'OK', status: 'OK', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' } as any,
+      { id: 'i2', analysis_id: 'a1', tag: 'STALE', status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' } as any,
+      { id: 'i3', analysis_id: 'a2', tag: 'ORPHAN', status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' } as any,
+    ]);
+
+    const analysesData = [{ id: 'a1', user_id: 'u1', file_name: 'Mantida', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' }];
+    const itemsData = [{ id: 'i1', analysis_id: 'a1', tag: 'OK', status: 'OK', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' }];
+
+    const limitMock = vi.fn().mockResolvedValue({ data: analysesData, error: null });
+    const orderMock = vi.fn(() => ({ limit: limitMock }));
+    const selectMock = vi.fn(() => ({ order: orderMock }));
+    const inMock = vi.fn().mockResolvedValue({ data: itemsData, error: null });
+
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'analyses') return { select: selectMock };
+      if (table === 'analysis_items') return { select: () => ({ in: inMock }) };
+      return {};
+    });
+
+    await pullData('u1');
+
+    const localAnalyses = await db.analyses.toArray();
+    const localItems = await db.analysis_items.toArray();
+
+    expect(localAnalyses.map((analysis) => analysis.id)).toEqual(['a1']);
+    expect(localItems.map((item) => item.id)).toEqual(['i1']);
+  });
+
   it('pullData não faz nada se offline', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     const result = await pullData('u1');
