@@ -524,7 +524,7 @@ export default function AnalysisDetail() {
                   </div>
                 ) : (
                   filteredItems.map((item) => (
-                    <div key={item.id} className={`border-l-[3px] p-4 ${statusBorderClass(item.status)} ${item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}`}>
+                    <div key={item.id} className={`border-l-[3px] px-4 py-3 ${statusBorderClass(item.status)} ${item.status === 'Pendente' ? 'bg-slate-900' : 'bg-slate-900/70'}`}>
                       {editingItemId === item.id ? (
                         <div className="space-y-4">
                           <div>
@@ -562,7 +562,7 @@ export default function AnalysisDetail() {
                         <div>
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-slate-100">{item.tag || 'Sem tag'}</span>
+                              <span className="text-sm font-bold text-slate-100">{item.tag || 'Sem tag'}</span>
                               <button onClick={() => startEditing(item)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
                                 <Edit2 className="w-4 h-4" />
                               </button>

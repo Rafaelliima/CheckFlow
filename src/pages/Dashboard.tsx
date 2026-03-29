@@ -287,15 +287,15 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
           <h2 className="text-xl font-semibold text-slate-100 sm:text-2xl">Minhas Análises</h2>
-          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
             <input
               type="text"
               placeholder="Buscar análise..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-base text-slate-100 shadow-sm transition focus:border-cyan-400 focus:ring-cyan-500 sm:w-64 sm:py-2 sm:text-sm"
+              className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 shadow-sm transition focus:border-cyan-400 focus:ring-cyan-500 sm:w-64"
             />
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex w-auto gap-2">
               <input 
                 type="file" 
                 accept="application/pdf" 
@@ -306,7 +306,7 @@ export default function Dashboard() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!!uploadStep || !!deletingAnalysisId}
-                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:flex-none sm:py-2"
+                className="flex h-10 w-[108px] items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:h-auto sm:w-auto sm:min-h-[44px] sm:px-4"
               >
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">
@@ -403,14 +403,14 @@ export default function Dashboard() {
                           </div>
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => confirmDeleteAnalysis(analysis.id)}
-                          disabled={deletingAnalysisId === analysis.id}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
-                          aria-label={`Apagar análise ${analysis.file_name || analysis.id}`}
-                          title="Apagar análise"
-                        >
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteAnalysis(analysis.id)}
+                  disabled={deletingAnalysisId === analysis.id}
+                  className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 text-red-300 transition hover:bg-red-950/50 disabled:opacity-50 sm:min-h-[44px] sm:min-w-[44px]"
+                  aria-label={`Apagar análise ${analysis.file_name || analysis.id}`}
+                  title="Apagar análise"
+                >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
