@@ -10,7 +10,7 @@ import { db } from '../lib/db';
 import { pullData, queueMutation, retryFailedOperations } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
-import { Clock, FilePlus, FileText, Trash2, Upload, User as UserIcon } from 'lucide-react';
+import { CheckCircle2, Clock, FilePlus, FileText, Loader2, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function decodeHtmlEntities(text: string): string {
@@ -47,7 +47,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null);
-  const [uploadStep, setUploadStep] = useState<string>('');
+  const [uploadStep, setUploadStep] = useState<'pdf' | 'ai' | 'saving' | 'done' | ''>('');
+  const [uploadFileName, setUploadFileName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [remoteSearchResults, setRemoteSearchResults] = useState<Analysis[]>([]);
@@ -180,6 +181,7 @@ export default function Dashboard() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     
+    setUploadFileName(file.name);
     setUploadStep('pdf');
     try {
       // 1. Extract text
@@ -224,13 +226,16 @@ export default function Dashboard() {
         }
       }
       
-      // 5. Redirect
+      // 5. Show done state briefly and redirect
+      setUploadStep('done');
+      await new Promise((resolve) => setTimeout(resolve, 700));
       navigate(`/analysis/${analysisId}`);
     } catch (error) {
       console.error('Error processing PDF:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao processar o PDF. Tente novamente.');
     } finally {
       setUploadStep('');
+      setUploadFileName('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -281,6 +286,63 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
+      {uploadStep && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              {uploadStep === 'done' ? (
+                <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+              ) : (
+                <Loader2 className="h-6 w-6 animate-spin text-cyan-300" />
+              )}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">
+                  {uploadStep === 'done' ? 'Concluído' : 'Processando upload'}
+                </h3>
+                <p className="text-xs text-slate-400">{uploadFileName}</p>
+              </div>
+            </div>
+
+            <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ${uploadStep === 'done' ? 'bg-emerald-400' : 'bg-cyan-400'}`}
+                style={{ width: `${uploadStep === 'pdf' ? 33 : uploadStep === 'ai' ? 66 : uploadStep === 'saving' ? 90 : 100}%` }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { key: 'pdf', label: 'Lendo PDF' },
+                { key: 'ai', label: 'Analisando com IA' },
+                { key: 'saving', label: 'Salvando dados' },
+              ].map((step, index) => {
+                const order = { pdf: 1, ai: 2, saving: 3, done: 4 } as const;
+                const currentOrder = order[uploadStep];
+                const stepOrder = index + 1;
+                const isComplete = currentOrder > stepOrder;
+                const isCurrent = currentOrder === stepOrder;
+
+                return (
+                  <div key={step.key} className="flex items-center gap-3">
+                    <span
+                      className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                        isComplete ? 'bg-emerald-400' : isCurrent ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'
+                      }`}
+                    />
+                    <p className={`text-sm ${isComplete ? 'text-emerald-300' : isCurrent ? 'text-slate-100' : 'text-slate-500'}`}>
+                      {step.label}
+                    </p>
+                  </div>
+                );
+              })}
+              {uploadStep === 'done' && (
+                <p className="pt-1 text-sm font-medium text-emerald-300">Dados salvos com sucesso.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <OfflineIndicator />
       <Header title="Dashboard" userEmail={user?.email} />
 
@@ -309,11 +371,7 @@ export default function Dashboard() {
                 className="flex h-10 w-[108px] items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:h-auto sm:w-auto sm:min-h-[44px] sm:px-4"
               >
                 <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">
-                  {uploadStep === 'pdf' ? 'Lendo...' : 
-                   uploadStep === 'ai' ? 'Analisando...' : 
-                   uploadStep === 'saving' ? 'Salvando...' : 'Upload PDF'}
-                </span>
+                <span className="hidden sm:inline">Upload PDF</span>
                 <span className="sm:hidden">PDF</span>
               </button>
             </div>
