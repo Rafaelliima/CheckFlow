@@ -162,7 +162,7 @@ describe('DashboardPage', () => {
 });
 
 
-it('normaliza importação trocando patrimônio e número de série para o formato esperado', () => {
+it('normaliza importação mantendo patrimônio e número de série corretos', () => {
   expect(normalizeImportedItem({
     tag: 'T-01',
     descricao: 'Equipamento',
@@ -173,8 +173,8 @@ it('normaliza importação trocando patrimônio e número de série para o forma
     tag: 'T-01',
     descricao: 'Equipamento',
     modelo: 'M-01',
-    patrimonio: 'PAT-999',
-    numero_serie: 'NS-123',
+    patrimonio: 'NS-123',
+    numero_serie: 'PAT-999',
   });
 });
 
@@ -189,7 +189,7 @@ it('normaliza importação decodificando entidades HTML', () => {
     tag: 'INFUSÃO',
     descricao: 'OTOSCÓPIO',
     modelo: 'TERMOHIGRÔMETRO',
-    patrimonio: 'PATRIMÔNIO-01',
-    numero_serie: 'SÉRIE-02',
+    patrimonio: 'SÉRIE-02',
+    numero_serie: 'PATRIMÔNIO-01',
   });
 });

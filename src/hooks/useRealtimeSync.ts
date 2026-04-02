@@ -156,7 +156,7 @@ export function useRealtimeSync(analysisId: string | undefined) {
       const startedAt = performance.now();
       try {
         await Promise.race([
-          supabase.from('analyses').select('id', { head: true, count: 'exact' }).limit(1),
+          supabase.from('analyses').select('id', { head: true }).limit(1),
           new Promise((_, reject) => {
             window.setTimeout(() => reject(new Error('heartbeat_timeout')), HEARTBEAT_TIMEOUT_MS);
           }),

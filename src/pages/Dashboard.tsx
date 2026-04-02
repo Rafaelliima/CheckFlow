@@ -29,8 +29,8 @@ export function normalizeImportedItem(item: {
   const tag = decodeHtmlEntities(item.tag || 'N/A');
   const descricao = decodeHtmlEntities(item.descricao || 'N/A');
   const modelo = decodeHtmlEntities(item.modelo || 'N/A');
-  const patrimonio = decodeHtmlEntities(item.numero_serie || item.patrimonio || 'N/A');
-  const numeroSerie = decodeHtmlEntities(item.patrimonio || item.numero_serie || 'N/A');
+  const patrimonio = decodeHtmlEntities(item.patrimonio || 'N/A');
+  const numeroSerie = decodeHtmlEntities(item.numero_serie || 'N/A');
 
   return {
     tag,

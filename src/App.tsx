@@ -12,9 +12,30 @@ import { InstallBanner } from './components/InstallBanner';
 import { useAuth } from './hooks/useAuth';
 import { addDebugLog } from './lib/debug';
 
-export default function App() {
-  const { session, loading } = useAuth();
+function LoadingScreen() {
+  return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">Carregando...</div>;
+}
 
+function PublicRoute({ children }: { children: JSX.Element }) {
+  const { session, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  return session ? <Navigate to="/dashboard" replace /> : children;
+}
+
+function PrivateRoute({ children }: { children: JSX.Element }) {
+  const { session, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  return session ? children : <Navigate to="/" replace />;
+}
+
+const router = createBrowserRouter([
+  { path: '/', element: <PublicRoute><Login /></PublicRoute> },
+  { path: '/register', element: <PublicRoute><Register /></PublicRoute> },
+  { path: '/dashboard', element: <PrivateRoute><Dashboard /></PrivateRoute> },
+  { path: '/analysis/:id', element: <PrivateRoute><AnalysisDetail /></PrivateRoute> },
+]);
+
+export default function App() {
   useEffect(() => {
     addDebugLog('info', 'Iniciando app');
     document.title = 'CheckFlow';
@@ -29,17 +50,6 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, []);
-
-  if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">Carregando...</div>;
-  }
-
-  const router = createBrowserRouter([
-    { path: '/', element: session ? <Navigate to="/dashboard" replace /> : <Login /> },
-    { path: '/register', element: session ? <Navigate to="/dashboard" replace /> : <Register /> },
-    { path: '/dashboard', element: session ? <Dashboard /> : <Navigate to="/" replace /> },
-    { path: '/analysis/:id', element: session ? <AnalysisDetail /> : <Navigate to="/" replace /> },
-  ]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
