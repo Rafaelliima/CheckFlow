@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import Dashboard from '../../src/pages/Dashboard';
-import { queueMutation } from '../../src/lib/sync';
+import Dashboard, { normalizeImportedItem } from '../../src/pages/Dashboard';
+import { pullData, queueMutation, retryFailedOperations } from '../../src/lib/sync';
 
 vi.mock('../../src/lib/pdf', () => ({
   extractTextFromPDF: vi.fn(),
@@ -10,30 +10,66 @@ vi.mock('../../src/lib/pdf', () => ({
 
 vi.mock('../../src/lib/gemini', () => ({
   extractEquipmentFromText: vi.fn(),
+  decodeHtmlEntities: (text: string) => {
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    return doc.documentElement.textContent ?? text;
+  },
 }));
 
+let remoteSearchData: any[] = [];
 vi.mock('../../src/lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } }),
     },
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        ilike: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({ data: remoteSearchData, error: null }),
+          })),
+        })),
+      })),
+    })),
   },
 }));
 
+let failedOpsCount = 0;
+let syncStatus = { isProcessing: false, pendingCount: 0 };
 vi.mock('dexie-react-hooks', () => ({
-  useLiveQuery: vi.fn(() => [
-    { id: '1', file_name: 'Análise 1', created_by_email: 'teste@email.com', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
-  ]),
+  useLiveQuery: vi.fn((fn: Function) => {
+    if (fn.toString().includes('failed_operations.count')) return failedOpsCount;
+    return [
+      { id: '1', file_name: 'Análise 1', created_by_email: 'teste@email.com', created_at: '2026-03-21T10:00:00.000Z', analysis_items: [] },
+    ];
+  }),
 }));
 
 vi.mock('../../src/lib/sync', () => ({
-  pullData: vi.fn(),
+  pullData: vi.fn().mockResolvedValue({
+    loaded: 1,
+    hasMore: false,
+    nextBeforeCreatedAt: null,
+  }),
+  retryFailedOperations: vi.fn().mockResolvedValue(1),
+  subscribeSyncStatus: vi.fn((listener: any) => {
+    listener(syncStatus);
+    return vi.fn();
+  }),
   queueMutation: vi.fn(),
 }));
 
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    failedOpsCount = 0;
+    syncStatus = { isProcessing: false, pendingCount: 0 };
+    remoteSearchData = [];
+    (pullData as any).mockResolvedValue({
+      loaded: 1,
+      hasMore: false,
+      nextBeforeCreatedAt: null,
+    });
   });
 
   it('lista análises do usuário com email do criador', async () => {
@@ -45,6 +81,8 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('Análise 1')).toBeInTheDocument();
     expect(await screen.findByText('teste@email.com')).toBeInTheDocument();
+    expect(screen.queryByText('Total Análises')).not.toBeInTheDocument();
+    expect(screen.queryByText('Itens OK')).not.toBeInTheDocument();
   });
 
   it('navega para AnalysisPage ao clicar', async () => {
@@ -58,19 +96,104 @@ describe('DashboardPage', () => {
     expect(link.closest('a')).toHaveAttribute('href', '/analysis/1');
   });
 
-  it('botão "Nova Análise" cria registro', async () => {
+  it('permite apagar uma análise existente', async () => {
     render(
       <BrowserRouter>
         <Dashboard />
       </BrowserRouter>
     );
 
-    const btns = await screen.findAllByText('Nova Análise');
-    fireEvent.click(btns[0]);
+    const deleteButton = await screen.findByTitle('Apagar análise');
+    fireEvent.click(deleteButton);
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar exclusão' }));
 
-    // Wait for the async operation
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(queueMutation).toHaveBeenCalledWith('DELETE', 'analyses', '1', expect.any(Object));
+    });
+  });
 
-    expect(queueMutation).toHaveBeenCalledWith('INSERT', 'analyses', expect.any(String), expect.any(Object));
+  it('mostra aviso de alterações não sincronizadas e permite tentar novamente', async () => {
+    failedOpsCount = 2;
+
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText(/2 alteração\(ões\) não foram sincronizadas/i)).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: 'Tentar novamente' });
+    fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      expect(retryFailedOperations).toHaveBeenCalled();
+    });
+  });
+
+  it('mostra indicador de sincronização quando processQueue está em execução', async () => {
+    syncStatus = { isProcessing: true, pendingCount: 3 };
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByTestId('syncing-indicator')).toHaveTextContent('Sincronizando 3 itens...');
+  });
+
+  it('aplica debounce e complementa busca local com resultado remoto quando online', async () => {
+    remoteSearchData = [
+      {
+        id: '2',
+        file_name: 'Relatório Remoto',
+        created_at: '2026-03-21T11:00:00.000Z',
+        updated_at: '2026-03-21T11:00:00.000Z',
+        created_by_email: 'remoto@email.com',
+      },
+    ];
+
+    render(
+      <BrowserRouter>
+        <Dashboard />
+      </BrowserRouter>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Buscar análise...'), { target: { value: 're' } });
+    await waitFor(() => {
+      expect(screen.getByText('Relatório Remoto')).toBeInTheDocument();
+    });
+  });
+});
+
+
+it('normaliza importação mantendo patrimônio e número de série corretos', () => {
+  expect(normalizeImportedItem({
+    tag: 'T-01',
+    descricao: 'Equipamento',
+    modelo: 'M-01',
+    patrimonio: 'NS-123',
+    numero_serie: 'PAT-999',
+  })).toEqual({
+    tag: 'T-01',
+    descricao: 'Equipamento',
+    modelo: 'M-01',
+    patrimonio: 'NS-123',
+    numero_serie: 'PAT-999',
+  });
+});
+
+it('normaliza importação decodificando entidades HTML', () => {
+  expect(normalizeImportedItem({
+    tag: 'INFUS&Atilde;O',
+    descricao: 'OTOSC&Oacute;PIO',
+    modelo: 'TERMOHIGR&Ocirc;METRO',
+    patrimonio: 'S&Eacute;RIE-02',
+    numero_serie: 'PATRIM&Ocirc;NIO-01',
+  })).toEqual({
+    tag: 'INFUSÃO',
+    descricao: 'OTOSCÓPIO',
+    modelo: 'TERMOHIGRÔMETRO',
+    patrimonio: 'SÉRIE-02',
+    numero_serie: 'PATRIMÔNIO-01',
   });
 });

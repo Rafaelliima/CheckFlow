@@ -1,14 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import AnalysisDetail from '../../src/pages/AnalysisDetail';
-import { queueMutation } from '../../src/lib/sync';
+import AnalysisDetail, { sortAnalysisItems } from '../../src/pages/AnalysisDetail';
+import { queueMutation, retryFailedOperations } from '../../src/lib/sync';
+import toast from 'react-hot-toast';
+
+let blockerState: 'unblocked' | 'blocked' = 'unblocked';
+const proceedMock = vi.fn();
+const resetMock = vi.fn();
+const beforeUnloadHandlers: ((event: BeforeUnloadEvent) => void)[] = [];
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual as any,
     useParams: () => ({ id: '1' }),
+    useBeforeUnload: vi.fn((handler: (event: BeforeUnloadEvent) => void) => {
+      beforeUnloadHandlers.push(handler);
+    }),
+    useBlocker: vi.fn(() => ({
+      state: blockerState,
+      proceed: proceedMock,
+      reset: resetMock,
+    })),
   };
 });
 
@@ -17,7 +31,9 @@ vi.mock('../../src/lib/supabase', () => ({
     channel: vi.fn().mockReturnValue({
       on: vi.fn().mockReturnValue({
         on: vi.fn().mockReturnValue({
-          subscribe: vi.fn(),
+          subscribe: vi.fn((callback?: (status: string) => void) => {
+            callback?.('SUBSCRIBED');
+          }),
         }),
       }),
     }),
@@ -25,14 +41,21 @@ vi.mock('../../src/lib/supabase', () => ({
   },
 }));
 
+let failedOpsCount = 0;
+let analysisRecord = { id: '1', file_name: 'Análise 1', notes: 'Notas iniciais', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' };
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn((fn, deps) => {
+    if (fn.toString().includes('failed_operations.count')) {
+      return failedOpsCount;
+    }
     if (deps && deps[0] === '1' && fn.toString().includes('db.analyses.get')) {
-      return { id: '1', file_name: 'Análise 1', notes: 'Notas iniciais', created_at: '2026-03-21T10:00:00.000Z' };
+      return analysisRecord;
     }
     if (deps && deps[0] === '1' && fn.toString().includes('db.analysis_items')) {
       return [
-        { id: 'i1', analysis_id: '1', tag: 'T-01', descricao: 'Desc', patrimonio: 'P1', numero_serie: 'S1', status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z' }
+        { id: 'i2', analysis_id: '1', tag: 'T-02', descricao: 'Conferido', patrimonio: 'P2', numero_serie: 'S2', status: 'OK', created_at: '2026-03-21T10:10:00.000Z' },
+        { id: 'i1', analysis_id: '1', tag: 'T-01', descricao: 'Desc', patrimonio: 'P1', numero_serie: 'S1', status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z' },
+        { id: 'i3', analysis_id: '1', tag: 'T-03', descricao: 'Problema', patrimonio: 'P3', numero_serie: 'S3', status: 'Divergência', created_at: '2026-03-21T10:20:00.000Z' }
       ];
     }
     return null;
@@ -41,6 +64,18 @@ vi.mock('dexie-react-hooks', () => ({
 
 vi.mock('../../src/lib/sync', () => ({
   queueMutation: vi.fn(),
+  retryFailedOperations: vi.fn().mockResolvedValue(1),
+  subscribeSyncStatus: vi.fn((listener: any) => {
+    listener({ isProcessing: false, pendingCount: 0 });
+    return vi.fn();
+  }),
+}));
+
+vi.mock('react-hot-toast', () => ({
+  default: Object.assign(vi.fn(), {
+    error: vi.fn(),
+    success: vi.fn(),
+  }),
 }));
 
 // Mock PDFDownloadLink
@@ -56,23 +91,41 @@ vi.mock('@react-pdf/renderer', () => ({
 describe('AnalysisDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    blockerState = 'unblocked';
+    beforeUnloadHandlers.length = 0;
+    failedOpsCount = 0;
+    analysisRecord = {
+      id: '1',
+      file_name: 'Análise 1',
+      notes: 'Notas iniciais',
+      created_at: '2026-03-21T10:00:00.000Z',
+      updated_at: '2026-03-21T10:00:00.000Z',
+    };
   });
 
-  it('renderiza tabela com itens e indicador de colaboração', async () => {
+  it('renderiza itens, remove badge colaborativo e mostra ícone discreto de realtime', async () => {
     render(
       <BrowserRouter>
         <AnalysisDetail />
       </BrowserRouter>
     );
 
-    const elements = await screen.findAllByText('T-01');
-    expect(elements[0]).toBeInTheDocument();
+    const tagElements = await screen.findAllByText('T-01');
+    expect(tagElements[0]).toBeInTheDocument();
     
     const descElements = await screen.findAllByText('Desc');
     expect(descElements[0]).toBeInTheDocument();
 
-    const collabIndicators = await screen.findAllByText(/Colaborativo/i);
-    expect(collabIndicators[0]).toBeInTheDocument();
+    expect(screen.queryByText(/Colaborativo/i)).not.toBeInTheDocument();
+
+    const realtimeButton = await screen.findByTestId('realtime-status-button');
+    expect(realtimeButton).toBeInTheDocument();
+    expect(screen.queryByTestId('realtime-status-tooltip')).not.toBeInTheDocument();
+
+    fireEvent.click(realtimeButton);
+    expect(await screen.findByTestId('realtime-status-tooltip')).toHaveTextContent(
+      'Conexão ruim. Mantendo sincronização local e monitorando a estabilidade'
+    );
   });
 
   it('botão de editar status altera valor', async () => {
@@ -97,8 +150,7 @@ describe('AnalysisDetail', () => {
       </BrowserRouter>
     );
 
-    const elements = await screen.findAllByText('Exportar PDF');
-    expect(elements[0]).toBeInTheDocument();
+    expect(await screen.findByText('Exportar PDF')).toBeInTheDocument();
   });
 
   it('campo notas gerais salva ao clicar no botão', async () => {
@@ -114,9 +166,9 @@ describe('AnalysisDetail', () => {
     const saveBtn = await screen.findByText('Salvar Notas');
     fireEvent.click(saveBtn);
 
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(queueMutation).toHaveBeenCalledWith('UPDATE', 'analyses', '1', expect.objectContaining({ notes: 'Novas notas' }));
+    await waitFor(() => {
+      expect(queueMutation).toHaveBeenCalledWith('UPDATE', 'analyses', '1', expect.objectContaining({ notes: 'Novas notas' }));
+    });
   });
 
   it('filtra itens na barra de pesquisa', async () => {
@@ -137,22 +189,167 @@ describe('AnalysisDetail', () => {
     expect(foundElements[0]).toBeInTheDocument();
   });
 
-  it('abre e fecha o modal de adicionar item', async () => {
+  it('exibe aviso de sincronização pendente e tenta reenfileirar operações', async () => {
+    failedOpsCount = 1;
     render(
       <BrowserRouter>
         <AnalysisDetail />
       </BrowserRouter>
     );
 
-    const fab = await screen.findByLabelText('Adicionar Item');
-    fireEvent.click(fab);
+    expect(await screen.findByText(/1 alteração\(ões\) não foram sincronizadas/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
 
-    const modalTitle = await screen.findByText('Adicionar Novo Item');
-    expect(modalTitle).toBeInTheDocument();
+    await waitFor(() => {
+      expect(retryFailedOperations).toHaveBeenCalled();
+    });
+  });
 
-    const closeBtn = await screen.findByText('Cancelar');
-    fireEvent.click(closeBtn);
+  it('aplica notas remotas apenas quando textarea perde foco e mostra aviso discreto', async () => {
+    const { rerender } = render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
 
+    const textarea = await screen.findByPlaceholderText('Observações gerais sobre esta análise...');
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, { target: { value: 'Editando localmente' } });
+
+    analysisRecord = {
+      ...analysisRecord,
+      notes: 'Notas remotas mais novas',
+      updated_at: '2026-03-21T11:00:00.000Z',
+    };
+    rerender(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect((await screen.findByPlaceholderText('Observações gerais sobre esta análise...') as HTMLTextAreaElement).value).toBe('Editando localmente');
+
+    fireEvent.blur(textarea);
+
+    expect((await screen.findByPlaceholderText('Observações gerais sobre esta análise...') as HTMLTextAreaElement).value).toBe('Notas remotas mais novas');
+    expect(toast).toHaveBeenCalledWith('Notas atualizadas por outro usuário.', { icon: 'ℹ️' });
+  });
+
+  it('bloqueia navegação com modal quando há edição não salva', async () => {
+    blockerState = 'blocked';
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText('Sair sem salvar?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar editando' }));
+    expect(resetMock).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair sem salvar' }));
+    expect(proceedMock).toHaveBeenCalled();
+  });
+
+  it('registra proteção beforeunload quando há alterações não salvas', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const textarea = await screen.findByPlaceholderText('Observações gerais sobre esta análise...');
+    fireEvent.change(textarea, { target: { value: 'Alteração local não salva' } });
+
+    const event = { preventDefault: vi.fn(), returnValue: undefined as string | undefined } as unknown as BeforeUnloadEvent;
+    beforeUnloadHandlers[0]?.(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.returnValue).toBe('');
+  });
+
+  it('ordena itens com pendentes no topo e divergências por último', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const desktopRows = document.querySelectorAll('tbody tr');
+    expect(within(desktopRows[0] as HTMLElement).getByText('T-01')).toBeInTheDocument();
+    expect(within(desktopRows[1] as HTMLElement).getByText('T-02')).toBeInTheDocument();
+    expect(within(desktopRows[2] as HTMLElement).getByText('T-03')).toBeInTheDocument();
+  });
+
+  it('reordena itens quando o status muda', () => {
+    const reordered = sortAnalysisItems([
+      { id: '1', analysis_id: 'a1', tag: 'T-01', descricao: 'A', patrimonio: 'P1', numero_serie: 'S1', status: 'OK', created_at: '2026-03-21T10:00:00.000Z', updated_at: '2026-03-21T10:00:00.000Z' },
+      { id: '2', analysis_id: 'a1', tag: 'T-02', descricao: 'B', patrimonio: 'P2', numero_serie: 'S2', status: 'Pendente', created_at: '2026-03-21T09:00:00.000Z', updated_at: '2026-03-21T09:00:00.000Z' },
+    ]);
+
+    expect(reordered.map((item) => item.tag)).toEqual(['T-02', 'T-01']);
+
+    const afterStatusChange = sortAnalysisItems(
+      reordered.map((item) => item.id === '1' ? { ...item, status: 'Pendente', updated_at: '2026-03-21T11:00:00.000Z' } : item)
+    );
+
+    expect(afterStatusChange.map((item) => item.tag)).toEqual(['T-01', 'T-02']);
+  });
+
+
+  it('não quebra ao filtrar itens com campos opcionais ausentes', async () => {
+    const { useLiveQuery } = await import('dexie-react-hooks');
+    vi.mocked(useLiveQuery).mockImplementation((fn: any, deps: any) => {
+      if (deps && deps[0] === '1' && fn.toString().includes('db.analyses.get')) {
+        return { id: '1', file_name: 'Análise 1', notes: '', created_at: '2026-03-21T10:00:00.000Z' };
+      }
+      if (deps && deps[0] === '1' && fn.toString().includes('db.analysis_items')) {
+        return [
+          { id: 'i1', analysis_id: '1', tag: undefined, descricao: undefined, patrimonio: undefined, numero_serie: undefined, status: 'Pendente', created_at: '2026-03-21T10:00:00.000Z' }
+        ];
+      }
+      return null;
+    });
+
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const searchInput = await screen.findByPlaceholderText(/Buscar por tag/i);
+    fireEvent.change(searchInput, { target: { value: 'qualquer' } });
+
+    const emptyStates = await screen.findAllByText('Nenhum item encontrado para a busca.');
+    expect(emptyStates[0]).toBeInTheDocument();
+  });
+
+
+  it('mantém só o status fora do menu mobile e expõe ações no hamburger', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    const menuButton = await screen.findByLabelText('Abrir menu');
+    fireEvent.click(menuButton);
+
+    expect(await screen.findByText('Baixar PDF')).toBeInTheDocument();
+    const deleteLabels = await screen.findAllByText('Apagar análise');
+    expect(deleteLabels[0]).toBeInTheDocument();
+    expect(await screen.findByTestId('realtime-status-button')).toBeInTheDocument();
+  });
+
+  it('não exibe ação para adicionar item manualmente', async () => {
+    render(
+      <BrowserRouter>
+        <AnalysisDetail />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByText('Exportar PDF')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Adicionar Item')).not.toBeInTheDocument();
     expect(screen.queryByText('Adicionar Novo Item')).not.toBeInTheDocument();
   });
 });
