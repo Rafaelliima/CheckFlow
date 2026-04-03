@@ -10,6 +10,10 @@ vi.mock('../../src/lib/pdf', () => ({
 
 vi.mock('../../src/lib/gemini', () => ({
   extractEquipmentFromText: vi.fn(),
+  decodeHtmlEntities: (text: string) => {
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    return doc.documentElement.textContent ?? text;
+  },
 }));
 
 let remoteSearchData: any[] = [];
