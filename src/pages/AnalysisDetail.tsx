@@ -59,6 +59,7 @@ export default function AnalysisDetail() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [deletingAnalysis, setDeletingAnalysis] = useState(false);
+  const [analysisToDeleteId, setAnalysisToDeleteId] = useState<string | null>(null);
   const [retryingFailedSync, setRetryingFailedSync] = useState(false);
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
@@ -123,12 +124,13 @@ export default function AnalysisDetail() {
     addDebugLog('info', 'Renderizando botão PDF', { analysisId: analysis.id });
   }, [analysis?.id]);
 
-  const handleDeleteAnalysis = async () => {
+  const confirmDeleteAnalysis = () => {
     if (!id) return;
+    setAnalysisToDeleteId(id);
+  };
 
-    const confirmed = window.confirm('Deseja apagar esta análise e todos os itens vinculados?');
-    if (!confirmed) return;
-
+  const handleDeleteAnalysis = async () => {
+    if (!id || !analysisToDeleteId) return;
     setDeletingAnalysis(true);
     try {
       for (const item of items) {
@@ -136,6 +138,7 @@ export default function AnalysisDetail() {
       }
 
       await queueMutation('DELETE', 'analyses', id, analysis);
+      setAnalysisToDeleteId(null);
       navigate('/dashboard');
     } catch (error) {
       console.error('Error deleting analysis:', error);
@@ -268,7 +271,7 @@ export default function AnalysisDetail() {
             </PDFDownloadLink>
             <button
               type="button"
-              onClick={handleDeleteAnalysis}
+              onClick={confirmDeleteAnalysis}
               disabled={deletingAnalysis}
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-base font-medium text-red-300 transition hover:bg-red-950/40 disabled:opacity-50"
             >
@@ -281,7 +284,7 @@ export default function AnalysisDetail() {
         <RealtimeStatusIndicator status={realtimeStatus} className="hidden sm:block" />
         <button
           type="button"
-          onClick={handleDeleteAnalysis}
+          onClick={confirmDeleteAnalysis}
           disabled={deletingAnalysis}
           className="hidden min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/50 disabled:opacity-50 sm:inline-flex"
         >
@@ -320,17 +323,17 @@ export default function AnalysisDetail() {
         )}
 
         {/* Progress and Summary */}
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors sm:p-6">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">
             <div>
               <h2 className="text-lg font-semibold text-slate-100">Progresso da Análise</h2>
               <p className="text-sm text-slate-400">{completedItems} de {totalItems} itens verificados</p>
             </div>
             <div className="text-left sm:text-right">
-              <span className="text-3xl font-bold text-indigo-600 dark:text-cyan-300">{progressPercent}%</span>
+              <span className="text-3xl font-bold text-indigo-600">{progressPercent}%</span>
             </div>
           </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div className={`h-3 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progressPercent}%` }}></div>
           </div>
         </div>
@@ -421,7 +424,7 @@ export default function AnalysisDetail() {
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
+                  <tbody className="divide-y divide-slate-200 bg-white">
                     {filteredItems.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
@@ -435,31 +438,31 @@ export default function AnalysisDetail() {
                             <td colSpan={4} className="px-6 py-4">
                               <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-200">Tag</label>
-                                  <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                                  <label className="block text-xs font-medium text-slate-700">Tag</label>
+                                  <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                                 </div>
                                 <div>
                                   <label className="block text-xs font-medium text-slate-700">Descrição</label>
-                                  <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                                  <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                                 </div>
                                 <div>
                                   <label className="block text-xs font-medium text-slate-700">Modelo</label>
-                                  <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                                  <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                                 </div>
                                 <div>
                                   <label className="block text-xs font-medium text-slate-700">Patrimônio</label>
-                                  <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                                  <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                                 </div>
                                 <div>
                                   <label className="block text-xs font-medium text-slate-700">Nº Série</label>
-                                  <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                                  <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                                 </div>
                               </div>
                               <div className="flex space-x-2">
                                 <button onClick={handleSaveEdit} disabled={savingEdit} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 min-h-[44px]">
                                   {savingEdit ? 'Salvando...' : 'Salvar'}
                                 </button>
-                                <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="min-h-[44px] rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
+                                <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="min-h-[44px] rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">
                                   Cancelar
                                 </button>
                               </div>
@@ -469,7 +472,7 @@ export default function AnalysisDetail() {
                               <td className={`whitespace-nowrap border-l-[3px] px-5 py-4 text-sm font-medium text-slate-100 ${statusBorderClass(item.status)}`}>
                                 <div className="flex items-center">
                                   {item.tag}
-                                  <button onClick={() => startEditing(item)} className="ml-2 p-1 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
+                                  <button onClick={() => startEditing(item)} className="ml-2 p-1 text-slate-400 hover:text-indigo-600" title="Editar">
                                     <Edit2 className="w-4 h-4" />
                                   </button>
                                 </div>
@@ -477,16 +480,16 @@ export default function AnalysisDetail() {
                               <td className="px-6 py-4 text-sm text-slate-400">
                                 {item.descricao || 'Sem descrição'}
                                 {(item.modelo !== 'N/A' || item.patrimonio !== 'N/A') && (
-                                  <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                                  <div className="mt-1 text-xs text-slate-400">
                                     Mod: {item.modelo || 'N/A'} | Pat: {item.patrimonio || 'N/A'}
                                   </div>
                                 )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                  ${item.status === 'OK' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 
-                                    item.status === 'Divergência' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 
-                                    'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'}`}>
+                                  ${item.status === 'OK' ? 'bg-emerald-100 text-emerald-800' : 
+                                    item.status === 'Divergência' ? 'bg-red-100 text-red-800' : 
+                                    'bg-amber-100 text-amber-800'}`}>
                                   {item.status}
                                 </span>
                               </td>
@@ -518,7 +521,7 @@ export default function AnalysisDetail() {
               </div>
 
               {/* Mobile Card View */}
-              <div className="divide-y divide-slate-200 dark:divide-slate-800 md:hidden">
+              <div className="divide-y divide-slate-200 md:hidden">
                 {filteredItems.length === 0 ? (
                   <div className="px-4 py-12 text-center text-slate-400">
                     {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
@@ -529,32 +532,32 @@ export default function AnalysisDetail() {
                       {editingItemId === item.id ? (
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-200">Tag</label>
-                            <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                            <label className="block text-xs font-medium text-slate-700">Tag</label>
+                            <input type="text" value={editForm.tag || ''} onChange={e => setEditForm({...editForm, tag: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-700">Descrição</label>
-                            <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                            <input type="text" value={editForm.descricao || ''} onChange={e => setEditForm({...editForm, descricao: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="block text-xs font-medium text-slate-700">Modelo</label>
-                              <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                              <input type="text" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-700">Patrimônio</label>
-                              <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                              <input type="text" value={editForm.patrimonio || ''} onChange={e => setEditForm({...editForm, patrimonio: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                             </div>
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-700">Nº Série</label>
-                            <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                            <input type="text" value={editForm.numero_serie || ''} onChange={e => setEditForm({...editForm, numero_serie: e.target.value})} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           <div className="flex space-x-3 pt-2">
-                            <button onClick={handleSaveEdit} disabled={savingEdit} className="min-h-[44px] flex-1 rounded-lg bg-indigo-600 py-3 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400">
+                            <button onClick={handleSaveEdit} disabled={savingEdit} className="min-h-[44px] flex-1 rounded-lg bg-indigo-600 py-3 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
                               {savingEdit ? 'Salvando...' : 'Salvar'}
                             </button>
-                            <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="min-h-[44px] flex-1 rounded-lg bg-slate-200 py-3 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
+                            <button onClick={() => setEditingItemId(null)} disabled={savingEdit} className="min-h-[44px] flex-1 rounded-lg bg-slate-200 py-3 text-sm font-medium text-slate-700 hover:bg-slate-300">
                               Cancelar
                             </button>
                           </div>
@@ -564,7 +567,7 @@ export default function AnalysisDetail() {
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-slate-100">{item.tag || 'Sem tag'}</span>
-                              <button onClick={() => startEditing(item)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-cyan-300" title="Editar">
+                              <button onClick={() => startEditing(item)} className="flex min-h-[44px] min-w-[44px] items-center justify-center p-2 text-slate-400 hover:text-indigo-600" title="Editar">
                                 <Edit2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -629,6 +632,35 @@ export default function AnalysisDetail() {
                 className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-rose-900/60 bg-rose-950/30 px-4 py-2 text-sm font-medium text-rose-200 hover:bg-rose-950/50"
               >
                 Sair sem salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {analysisToDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-lg">
+            <h3 className="text-base font-semibold text-slate-100">Confirmar exclusão</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Deseja apagar esta análise e todos os itens vinculados?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAnalysisToDeleteId(null)}
+                disabled={deletingAnalysis}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAnalysis}
+                disabled={deletingAnalysis}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-950/50 disabled:opacity-50"
+              >
+                {deletingAnalysis ? 'Apagando...' : 'Confirmar exclusão'}
               </button>
             </div>
           </div>

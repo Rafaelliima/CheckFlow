@@ -5,19 +5,13 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Analysis, AnalysisItem } from '../types';
 import { extractTextFromPDF } from '../lib/pdf';
-import { extractEquipmentFromText } from '../lib/gemini';
+import { decodeHtmlEntities, extractEquipmentFromText } from '../lib/gemini';
 import { db } from '../lib/db';
 import { pullData, queueMutation, retryFailedOperations } from '../lib/sync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { CheckCircle2, Clock, FilePlus, FileText, Loader2, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-function decodeHtmlEntities(text: string): string {
-  if (typeof DOMParser === 'undefined') return text;
-  const doc = new DOMParser().parseFromString(text, 'text/html');
-  return doc.documentElement.textContent ?? text;
-}
 
 export function normalizeImportedItem(item: {
   tag?: string;
