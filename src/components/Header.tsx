@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, Home } from 'lucide-react';
+import { Menu, X, LogOut, Home, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useDivergentItems } from '../hooks/useDivergentItems';
 
 interface HeaderProps {
   title: string;
@@ -28,6 +29,7 @@ export function Header({ title, children, mobileMenuChildren, userEmail, mobileS
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const userInitials = getUserInitials(userEmail);
+  const divergentItemsCount = useDivergentItems().length;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -51,6 +53,18 @@ export function Header({ title, children, mobileMenuChildren, userEmail, mobileS
           </div>
 
           <div className="ml-2 flex shrink-0 items-center gap-2 sm:gap-4">
+            <Link
+              to="/divergentes"
+              className="hidden items-center gap-2 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 sm:inline-flex"
+            >
+              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <span>Divergentes</span>
+              {divergentItemsCount > 0 && (
+                <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-950/60 px-1.5 py-0.5 text-xs font-semibold text-red-300">
+                  {divergentItemsCount}
+                </span>
+              )}
+            </Link>
             {children}
             <div
               className="hidden h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-cyan-300 sm:inline-flex"
@@ -83,6 +97,21 @@ export function Header({ title, children, mobileMenuChildren, userEmail, mobileS
       {menuOpen && (
         <div className="border-t border-slate-800 bg-slate-950 sm:hidden">
           <div className="space-y-1 px-2 pb-3 pt-2">
+            <Link
+              to="/divergentes"
+              onClick={() => setMenuOpen(false)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-base font-medium text-slate-100 transition hover:bg-slate-800 hover:text-cyan-300"
+            >
+              <span className="inline-flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-400" />
+                Divergentes
+              </span>
+              {divergentItemsCount > 0 && (
+                <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-950/60 px-1.5 py-0.5 text-xs font-semibold text-red-300">
+                  {divergentItemsCount}
+                </span>
+              )}
+            </Link>
             {mobileMenuChildren}
             <button
               onClick={handleLogout}

@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<'pdf' | 'ai' | 'saving' | 'done' | ''>('');
+  const [aiRetryInfo, setAiRetryInfo] = useState<{ attempt: number; total: number } | null>(null);
   const [uploadFileName, setUploadFileName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const [retryingFailedSync, setRetryingFailedSync] = useState(false);
   const [analysisToDeleteId, setAnalysisToDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previousUploadStepRef = useRef(uploadStep);
   const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
 
   const analyses = useLiveQuery(async (): Promise<DashboardAnalysis[]> => {
@@ -107,6 +109,13 @@ export default function Dashboard() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (previousUploadStepRef.current === 'ai' && uploadStep !== 'ai') {
+      setAiRetryInfo(null);
+    }
+    previousUploadStepRef.current = uploadStep;
+  }, [uploadStep]);
 
   useEffect(() => {
     if (!user?.id || !isOnline || debouncedSearchQuery.length < 2) {
@@ -189,7 +198,10 @@ export default function Dashboard() {
       
       // 2. Send to Gemini
       setUploadStep('ai');
-      const items = await extractEquipmentFromText(text);
+      const items = await extractEquipmentFromText(
+        text,
+        (attempt, total) => setAiRetryInfo({ attempt, total })
+      );
       
       // 3. Create Analysis
       setUploadStep('saving');
@@ -330,7 +342,9 @@ export default function Dashboard() {
                       }`}
                     />
                     <p className={`text-sm ${isComplete ? 'text-emerald-300' : isCurrent ? 'text-slate-100' : 'text-slate-500'}`}>
-                      {step.label}
+                      {step.key === 'ai' && uploadStep === 'ai' && aiRetryInfo
+                        ? `Tentativa ${aiRetryInfo.attempt + 1} de ${aiRetryInfo.total + 1}...`
+                        : step.label}
                     </p>
                   </div>
                 );
