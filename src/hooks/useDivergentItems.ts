@@ -11,7 +11,10 @@ export function useDivergentItems(): DivergentItem[] {
     useLiveQuery(async () => {
       try {
         const divergentItems = await db.analysis_items.where('status').equals('Divergência').toArray();
-        const orderedItems = divergentItems.sort(
+        const unresolvedDivergentItems = divergentItems.filter(
+          (item) => item.found_in_analysis_id === undefined || item.found_in_analysis_id === null
+        );
+        const orderedItems = unresolvedDivergentItems.sort(
           (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
 

@@ -1,10 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Search, X } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { useDivergentItems } from '../hooks/useDivergentItems';
 import { normalizeSearchValue } from '../lib/search';
+import { db } from '../lib/db';
+import { AnalysisItem } from '../types';
+
+interface ResolvedDivergentItem extends AnalysisItem {
+  analysis_file_name: string;
+}
 
 export default function DivergentSearch() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +28,29 @@ export default function DivergentSearch() {
       normalizeSearchValue(item.numero_serie).includes(normalizedQuery)
     ));
   }, [divergentItems, normalizedQuery]);
+
+  const resolvedItems = useLiveQuery(async (): Promise<ResolvedDivergentItem[]> => {
+    try {
+      const allItems = await db.analysis_items.toArray();
+      const resolved = allItems.filter((item) => item.found_in_analysis_id !== undefined && item.found_in_analysis_id !== null);
+      const orderedResolved = resolved.sort(
+        (a, b) => new Date(b.found_at || b.updated_at).getTime() - new Date(a.found_at || a.updated_at).getTime()
+      );
+      const analysisIds = Array.from(new Set(orderedResolved.map((item) => item.analysis_id)));
+      const analyses = analysisIds.length ? await db.analyses.bulkGet(analysisIds) : [];
+      const analysisNameById = new Map(
+        analyses
+          .filter((analysis): analysis is NonNullable<typeof analysis> => Boolean(analysis))
+          .map((analysis) => [analysis.id, analysis.file_name || 'Ronda sem nome'])
+      );
+      return orderedResolved.map((item) => ({
+        ...item,
+        analysis_file_name: analysisNameById.get(item.analysis_id) || 'Ronda sem nome',
+      }));
+    } catch {
+      return [];
+    }
+  }, []) || [];
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
@@ -81,6 +111,40 @@ export default function DivergentSearch() {
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-400">Ronda: {item.analysis_file_name}</p>
+                    </div>
+                    <Link
+                      to={`/analysis/${item.analysis_id}`}
+                      className="inline-flex min-h-[36px] w-fit items-center justify-center rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-medium text-cyan-300 transition hover:bg-slate-800"
+                    >
+                      Abrir ronda
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+          <div className="border-b border-slate-800 bg-slate-950/70 px-4 py-3 sm:px-6">
+            <h3 className="text-sm font-semibold text-slate-200">Resolvidos</h3>
+          </div>
+          {resolvedItems.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-slate-500">Nenhum item resolvido até o momento</div>
+          ) : (
+            <ul className="divide-y divide-slate-800">
+              {resolvedItems.map((item) => (
+                <li key={item.id} className="px-4 py-4 sm:px-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-500">{item.tag || 'Sem tag'} · {item.descricao || 'Sem descrição'}</p>
+                        <span className="inline-flex items-center rounded-full border border-emerald-900/60 bg-emerald-950/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                          Encontrado
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-300">Localizado em: {item.found_in_analysis_name || 'Ronda não informada'}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Origem: {item.analysis_file_name}</p>
                     </div>
                     <Link
                       to={`/analysis/${item.analysis_id}`}

@@ -11,10 +11,10 @@ import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { Header } from '../components/Header';
 import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
-import { Search, X, Edit2, FileDown, Trash2 } from 'lucide-react';
+import { Search, X, Edit2, FileDown, Trash2, AlertTriangle } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
 import { normalizeSearchValue } from '../lib/search';
-import { useDivergentItems } from '../hooks/useDivergentItems';
+import { DivergentItem, useDivergentItems } from '../hooks/useDivergentItems';
 import toast from 'react-hot-toast';
 
 export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'created_at'>>(items: T[]) {
@@ -59,6 +59,7 @@ export default function AnalysisDetail() {
   
   const [deletingAnalysis, setDeletingAnalysis] = useState(false);
   const [retryingFailedSync, setRetryingFailedSync] = useState(false);
+  const [markingFoundId, setMarkingFoundId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
   // Notes state
@@ -216,6 +217,33 @@ export default function AnalysisDetail() {
     }
   };
 
+  async function handleMarkAsFound(divergentItem: DivergentItem) {
+    if (!id || !analysis) return;
+
+    setMarkingFoundId(divergentItem.id);
+    try {
+      const item = await db.analysis_items.get(divergentItem.id);
+      if (!item) return;
+
+      const updatedItem = {
+        ...item,
+        status: 'Encontrado',
+        found_in_analysis_id: id,
+        found_in_analysis_name: analysis.file_name,
+        found_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      await queueMutation('UPDATE', 'analysis_items', divergentItem.id, updatedItem);
+      toast.success(`Item encontrado na ronda "${analysis.file_name}"`);
+      setSearchQuery('');
+    } catch {
+      toast.error('Erro ao marcar item como encontrado.');
+    } finally {
+      setMarkingFoundId(null);
+    }
+  }
+
   useBeforeUnload((event) => {
     if (!hasUnsavedChanges) return;
     event.preventDefault();
@@ -240,6 +268,18 @@ export default function AnalysisDetail() {
     );
   }));
   const hasActiveSearch = searchQuery.trim() !== '';
+  const crossMatches = hasActiveSearch
+    ? divergentItems.filter((divergentItem) => {
+        if (divergentItem.analysis_id === id) return false;
+        const q = normalizeSearchValue(searchQuery);
+        return (
+          normalizeSearchValue(divergentItem.tag).includes(q) ||
+          normalizeSearchValue(divergentItem.descricao).includes(q) ||
+          normalizeSearchValue(divergentItem.patrimonio).includes(q) ||
+          normalizeSearchValue(divergentItem.numero_serie).includes(q)
+        );
+      })
+    : [];
 
   const divergentWarningByItemId = new Map(
     filteredItems.map((item) => {
@@ -387,6 +427,30 @@ export default function AnalysisDetail() {
             </p>
           )}
         </div>
+        {crossMatches.length > 0 && (
+          <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-950/20 p-4">
+            <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-300">
+              <AlertTriangle className="h-4 w-4" />
+              Item divergente encontrado em outra ronda
+            </p>
+            {crossMatches.map((item) => (
+              <div key={item.id} className="mb-3 flex flex-col gap-3 rounded-lg border border-slate-700 bg-slate-900 p-3 last:mb-0 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">{item.tag} · {item.descricao}</p>
+                  <p className="mt-0.5 text-xs text-amber-400">Origem: {item.analysis_file_name}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">Pat: {item.patrimonio} · NS: {item.numero_serie}</p>
+                </div>
+                <button
+                  onClick={() => handleMarkAsFound(item)}
+                  disabled={markingFoundId === item.id}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-lg bg-emerald-700 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-50"
+                >
+                  {markingFoundId === item.id ? 'Salvando...' : 'Marcar como Encontrado'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Notes */}
