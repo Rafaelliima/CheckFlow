@@ -13,11 +13,9 @@ import { OfflineIndicator } from '../components/OfflineIndicator';
 import { RealtimeStatusIndicator } from '../components/RealtimeStatusIndicator';
 import { Search, X, Edit2, FileDown, Trash2 } from 'lucide-react';
 import { addDebugLog } from '../lib/debug';
+import { normalizeSearchValue } from '../lib/search';
+import { useDivergentItems } from '../hooks/useDivergentItems';
 import toast from 'react-hot-toast';
-
-function normalizeSearchValue(value: string | null | undefined) {
-  return (value ?? '').toLowerCase();
-}
 
 export function sortAnalysisItems<T extends Pick<AnalysisItem, 'status' | 'created_at'>>(items: T[]) {
   const statusPriority = { Pendente: 0, OK: 1, Divergência: 2 } as const;
@@ -53,6 +51,7 @@ export default function AnalysisDetail() {
 
   const analysis = useLiveQuery(() => id ? db.analyses.get(id) : undefined, [id]);
   const items = useLiveQuery(() => id ? db.analysis_items.where('analysis_id').equals(id).reverse().sortBy('created_at') : [], [id]) || [];
+  const divergentItems = useDivergentItems();
   const failedOperationsCount = useLiveQuery(() => db.failed_operations.count(), []) ?? 0;
   
   const [loading, setLoading] = useState(true);
@@ -232,7 +231,7 @@ export default function AnalysisDetail() {
   }
 
   const filteredItems = sortAnalysisItems(items.filter(item => {
-    const q = searchQuery.toLowerCase();
+    const q = normalizeSearchValue(searchQuery);
     return (
       normalizeSearchValue(item.tag).includes(q) ||
       normalizeSearchValue(item.descricao).includes(q) ||
@@ -240,6 +239,31 @@ export default function AnalysisDetail() {
       normalizeSearchValue(item.numero_serie).includes(q)
     );
   }));
+  const hasActiveSearch = searchQuery.trim() !== '';
+
+  const divergentWarningByItemId = new Map(
+    filteredItems.map((item) => {
+      const matchingDivergence = divergentItems.find((divergentItem) => {
+        if (divergentItem.analysis_id === id) return false;
+
+        const itemTag = normalizeSearchValue(item.tag);
+        const itemPatrimonio = normalizeSearchValue(item.patrimonio);
+        const itemNumeroSerie = normalizeSearchValue(item.numero_serie);
+
+        const divergentTag = normalizeSearchValue(divergentItem.tag);
+        const divergentPatrimonio = normalizeSearchValue(divergentItem.patrimonio);
+        const divergentNumeroSerie = normalizeSearchValue(divergentItem.numero_serie);
+
+        const tagMatches = itemTag && itemTag !== 'n/a' && itemTag === divergentTag;
+        const patrimonioMatches = itemPatrimonio && itemPatrimonio !== 'n/a' && itemPatrimonio === divergentPatrimonio;
+        const numeroSerieMatches = itemNumeroSerie && itemNumeroSerie !== 'n/a' && itemNumeroSerie === divergentNumeroSerie;
+
+        return tagMatches || patrimonioMatches || numeroSerieMatches;
+      });
+
+      return [item.id, matchingDivergence?.analysis_file_name];
+    })
+  );
 
   const totalItems = items.length;
   const completedItems = items.filter(i => i.status !== 'Pendente').length;
@@ -425,7 +449,7 @@ export default function AnalysisDetail() {
                     {filteredItems.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                          {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
+                          {hasActiveSearch ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
                         </td>
                       </tr>
                     ) : (
@@ -481,6 +505,11 @@ export default function AnalysisDetail() {
                                     Mod: {item.modelo || 'N/A'} | Pat: {item.patrimonio || 'N/A'}
                                   </div>
                                 )}
+                                {hasActiveSearch && divergentWarningByItemId.get(item.id) && (
+                                  <div className="mt-1 text-xs text-amber-400">
+                                    ⚠ Divergência registrada em "{divergentWarningByItemId.get(item.id)}"
+                                  </div>
+                                )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -521,7 +550,7 @@ export default function AnalysisDetail() {
               <div className="divide-y divide-slate-200 dark:divide-slate-800 md:hidden">
                 {filteredItems.length === 0 ? (
                   <div className="px-4 py-12 text-center text-slate-400">
-                    {searchQuery ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
+                    {hasActiveSearch ? 'Nenhum item encontrado para a busca.' : 'Nenhum item adicionado ainda.'}
                   </div>
                 ) : (
                   filteredItems.map((item) => (
@@ -581,6 +610,11 @@ export default function AnalysisDetail() {
                             <div><span className="font-medium">Pat:</span> {item.patrimonio || 'N/A'}</div>
                             <div className="col-span-2"><span className="font-medium">NS:</span> {item.numero_serie || 'N/A'}</div>
                           </div>
+                          {hasActiveSearch && divergentWarningByItemId.get(item.id) && (
+                            <p className="mb-2 text-xs text-amber-400">
+                              ⚠ Divergência registrada em "{divergentWarningByItemId.get(item.id)}"
+                            </p>
+                          )}
                           <div className="inline-flex w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                             {(['Pendente', 'OK', 'Divergência'] as const).map((statusOption) => (
                               <button

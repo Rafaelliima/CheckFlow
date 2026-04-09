@@ -41,6 +41,12 @@ export class RondaDB extends Dexie {
       sync_queue: '++id, timestamp',
       failed_operations: '++id, failedAt, table, recordId'
     });
+    this.version(3).stores({
+      analyses: 'id, user_id, created_at',
+      analysis_items: 'id, analysis_id, status, created_at',
+      sync_queue: '++id, timestamp',
+      failed_operations: '++id, failedAt, table, recordId'
+    });
   }
 }
 
