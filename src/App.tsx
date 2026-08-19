@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AnalysisDetail from './pages/AnalysisDetail';
+import DivergentSearch from './pages/DivergentSearch';
 import { processQueue } from './lib/sync';
 import { Toaster } from 'react-hot-toast';
 import { DebugLogger } from './components/DebugLogger';
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
   { path: '/register', element: <PublicRoute><Register /></PublicRoute> },
   { path: '/dashboard', element: <PrivateRoute><Dashboard /></PrivateRoute> },
   { path: '/analysis/:id', element: <PrivateRoute><AnalysisDetail /></PrivateRoute> },
+  { path: '/divergentes', element: <PrivateRoute><DivergentSearch /></PrivateRoute> },
 ]);
 
 export default function App() {

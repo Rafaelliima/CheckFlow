@@ -19,6 +19,9 @@ export interface AnalysisItem {
   patrimonio: string;
   numero_serie: string;
   status: string;
+  found_in_analysis_id?: string;
+  found_in_analysis_name?: string;
+  found_at?: string;
   created_at: string;
   updated_at: string;
 }
