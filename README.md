@@ -105,6 +105,10 @@ VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=sua_anon_key
 ```
 
+> `GEMINI_API_KEY` é usada **apenas no servidor**, pela function `api/extract-equipment.ts`
+> (Vercel Serverless Function) — ela nunca entra no bundle enviado ao navegador. Ao configurar
+> o projeto na Vercel, defina essa variável no painel (sem prefixo `VITE_`).
+
 **3. Banco de dados**
 
 No Supabase, abra o **SQL Editor** e execute o arquivo `supabase/schema.sql`.
@@ -115,6 +119,11 @@ No Supabase, abra o **SQL Editor** e execute o arquivo `supabase/schema.sql`.
 npm run dev
 # http://localhost:3000
 ```
+
+> `npm run dev` (Vite puro) não serve a pasta `api/`. Para testar a extração via IA
+> localmente, use `npx vercel dev` (requer `vercel login`/projeto vinculado), que sobe o
+> front e as Serverless Functions juntos. Sem isso, o restante do app funciona normalmente —
+> só o upload de PDF com extração por IA vai falhar localmente.
 
 ---
 

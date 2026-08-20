@@ -32,14 +32,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-          <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-center shadow-sm">
-            <h1 className="text-lg font-semibold text-slate-900">Algo deu errado</h1>
-            <p className="mt-2 text-sm text-slate-600">
+        <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
+          <div className="max-w-md rounded-2xl border border-rose-500/20 bg-slate-900/80 p-6 text-center shadow-2xl shadow-black/40 backdrop-blur-xl">
+            <h1 className="text-lg font-semibold text-slate-100">Algo deu errado</h1>
+            <p className="mt-2 text-sm text-slate-400">
               Abra com <code>?debug=true</code> para ver os logs de diagnóstico.
             </p>
             {this.state.errorMessage && (
-              <p className="mt-3 text-xs text-rose-600">{this.state.errorMessage}</p>
+              <p className="mt-3 text-xs text-rose-300">{this.state.errorMessage}</p>
             )}
           </div>
         </div>

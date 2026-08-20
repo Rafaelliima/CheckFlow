@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, ReactElement } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -17,13 +17,13 @@ function LoadingScreen() {
   return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">Carregando...</div>;
 }
 
-function PublicRoute({ children }: { children: JSX.Element }) {
+function PublicRoute({ children }: { children: ReactElement }) {
   const { session, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   return session ? <Navigate to="/dashboard" replace /> : children;
 }
 
-function PrivateRoute({ children }: { children: JSX.Element }) {
+function PrivateRoute({ children }: { children: ReactElement }) {
   const { session, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   return session ? children : <Navigate to="/" replace />;
@@ -54,7 +54,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100">
       <DebugLogger />
       <Toaster position="top-right" />
       <InstallBanner />

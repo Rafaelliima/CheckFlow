@@ -279,15 +279,15 @@ export default function Dashboard() {
   })();
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-20 text-slate-100 sm:pb-0">
+    <div className="min-h-screen pb-20 text-slate-100 sm:pb-0">
       {uploadStep && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900/90 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl">
             <div className="mb-4 flex items-center gap-3">
               {uploadStep === 'done' ? (
                 <CheckCircle2 className="h-6 w-6 text-emerald-400" />
               ) : (
-                <Loader2 className="h-6 w-6 animate-spin text-cyan-300" />
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-300" />
               )}
               <div>
                 <h3 className="text-sm font-semibold text-slate-100">
@@ -299,7 +299,7 @@ export default function Dashboard() {
 
             <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-800">
               <div
-                className={`h-2 rounded-full transition-all duration-500 ${uploadStep === 'done' ? 'bg-emerald-400' : 'bg-cyan-400'}`}
+                className={`h-2 rounded-full transition-all duration-500 ${uploadStep === 'done' ? 'bg-emerald-400' : 'bg-indigo-400'}`}
                 style={{ width: `${uploadStep === 'pdf' ? 33 : uploadStep === 'ai' ? 66 : uploadStep === 'saving' ? 90 : 100}%` }}
               />
             </div>
@@ -320,7 +320,7 @@ export default function Dashboard() {
                   <div key={step.key} className="flex items-center gap-3">
                     <span
                       className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                        isComplete ? 'bg-emerald-400' : isCurrent ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'
+                        isComplete ? 'bg-emerald-400' : isCurrent ? 'bg-indigo-400 animate-pulse' : 'bg-slate-600'
                       }`}
                     />
                     <p className={`text-sm ${isComplete ? 'text-emerald-300' : isCurrent ? 'text-slate-100' : 'text-slate-500'}`}>
@@ -341,15 +341,18 @@ export default function Dashboard() {
       <Header title="Dashboard" userEmail={user?.email} />
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-          <h2 className="text-xl font-semibold text-slate-100 sm:text-2xl">Minhas Análises</h2>
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-100 sm:text-2xl">Minhas Análises</h2>
+            <p className="mt-0.5 text-sm text-slate-400">Suas rondas e inspeções em um só lugar</p>
+          </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
             <input
               type="text"
               placeholder="Buscar análise..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 shadow-sm transition focus:border-cyan-400 focus:ring-cyan-500 sm:w-64"
+              className="w-full flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-100 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-indigo-400/60 focus:ring-2 focus:ring-indigo-500/20 sm:w-64"
             />
             <div className="flex w-auto gap-2">
               <input 
@@ -362,7 +365,7 @@ export default function Dashboard() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!!uploadStep || !!deletingAnalysisId}
-                className="flex h-10 w-[108px] items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 sm:h-auto sm:w-auto sm:min-h-[44px] sm:px-4"
+                className="flex h-10 w-[108px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-3 py-2 text-sm font-medium text-white shadow-md shadow-indigo-950/30 transition hover:from-indigo-400 hover:to-violet-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50 sm:h-auto sm:w-auto sm:min-h-[44px] sm:px-4"
               >
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Upload PDF</span>
@@ -373,7 +376,7 @@ export default function Dashboard() {
         </div>
 
         {failedOperationsCount > 0 && (
-          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-100">
+          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-amber-100">
             <p className="text-sm font-medium">
               {failedOperationsCount} alteração(ões) não foram sincronizadas. Tente novamente ou recarregue a página.
             </p>
@@ -388,23 +391,23 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
-          <ul className="divide-y divide-slate-800">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-xl shadow-black/20 backdrop-blur-sm">
+          <ul className="divide-y divide-white/5">
             {mergedAnalyses.length === 0 ? (
-              <li className="px-4 py-12 text-center">
+              <li className="px-4 py-16 text-center">
                 <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-900">
-                    <FilePlus className="h-10 w-10 text-slate-600" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10">
+                    <FilePlus className="h-7 w-7 text-slate-500" />
                   </div>
                   {debouncedSearchQuery.length >= 2 ? (
                     <>
-                      <p className="text-sm text-slate-400">Nenhuma análise encontrada para essa busca</p>
-                      <p className="text-xs text-slate-600">Tente outro termo ou limpe a busca</p>
+                      <p className="text-sm text-slate-300">Nenhuma análise encontrada para essa busca</p>
+                      <p className="text-xs text-slate-500">Tente outro termo ou limpe a busca</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm text-slate-400">Nenhuma análise ainda</p>
-                      <p className="text-xs text-slate-600">Faça upload de um PDF ou crie uma análise manual</p>
+                      <p className="text-sm text-slate-300">Nenhuma análise ainda</p>
+                      <p className="text-xs text-slate-500">Faça upload de um PDF ou crie uma análise manual</p>
                     </>
                   )}
                 </div>
@@ -416,19 +419,25 @@ export default function Dashboard() {
                 const progressPercent = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
 
                 return (
-                  <li key={analysis.id}>
+                  <li key={analysis.id} className="transition hover:bg-white/[0.03]">
                     <div className="px-4 py-4 sm:px-6">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 ${progressPercent === 100 ? 'text-emerald-400' : 'text-cyan-400'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${
+                            progressPercent === 100
+                              ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-300 ring-indigo-500/20'
+                          }`}
+                        >
                           <FileText className="h-4 w-4" />
                         </div>
                         <Link to={`/analysis/${analysis.id}`} className="min-w-0 flex-1">
-                          <div className="mb-2 flex items-center justify-between">
-                            <p className="truncate pr-4 text-base font-medium text-cyan-300">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="truncate text-base font-medium text-slate-100">
                               {analysis.file_name || 'Análise sem nome'}
                             </p>
                             <div className="flex-shrink-0">
-                              <p className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold leading-none ${progressPercent === 100 ? 'bg-emerald-950/40 text-emerald-300' : 'bg-cyan-950/50 text-cyan-200'}`}>
+                              <p className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold leading-none ${progressPercent === 100 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-indigo-500/10 text-indigo-200'}`}>
                                 {progressPercent}%
                               </p>
                             </div>
@@ -440,7 +449,7 @@ export default function Dashboard() {
                                 <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-slate-500" />
                                 {new Date(analysis.created_at).toLocaleDateString('pt-BR')} às {new Date(analysis.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                               </p>
-                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                                 <UserIcon className="h-3 w-3" />
                                 <span>{analysis.created_by_email || 'Usuário'}</span>
                               </div>
@@ -450,8 +459,8 @@ export default function Dashboard() {
                             </div>
                           </div>
 
-                          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                            <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${progressPercent}%` }}></div>
+                          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                            <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 to-violet-500'}`} style={{ width: `${progressPercent}%` }}></div>
                           </div>
                         </Link>
 
@@ -459,7 +468,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => confirmDeleteAnalysis(analysis.id)}
                   disabled={deletingAnalysisId === analysis.id}
-                  className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg border border-red-900/60 bg-red-950/30 text-red-300 transition hover:bg-red-950/50 disabled:opacity-50 sm:min-h-[44px] sm:min-w-[44px]"
+                  className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full border border-red-900/40 bg-red-500/5 text-red-300 transition hover:bg-red-500/15 disabled:opacity-50 sm:min-h-[44px] sm:min-w-[44px]"
                   aria-label={`Apagar análise ${analysis.file_name || analysis.id}`}
                   title="Apagar análise"
                 >
@@ -483,7 +492,7 @@ export default function Dashboard() {
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/[0.08] disabled:opacity-50"
             >
               {loadingMore ? 'Carregando...' : 'Carregar mais'}
             </button>
@@ -491,8 +500,8 @@ export default function Dashboard() {
         )}
 
         {analysisToDeleteId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-lg">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl">
               <h3 className="text-base font-semibold text-slate-100">Confirmar exclusão</h3>
               <p className="mt-2 text-sm text-slate-300">
                 Deseja apagar esta análise e todos os itens vinculados?

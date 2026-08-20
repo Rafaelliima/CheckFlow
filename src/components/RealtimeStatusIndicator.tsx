@@ -83,7 +83,7 @@ export function RealtimeStatusIndicator({ status, variant = 'default', className
     <div className={`relative ${className}`} ref={containerRef}>
       <button
         type="button"
-        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-200 bg-white/95 shadow-sm transition-colors hover:bg-slate-50 ${config.className}`}
+        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-white/10 bg-white/[0.04] shadow-sm transition-colors hover:bg-white/[0.08] ${config.className}`}
         title={config.label}
         aria-label={config.label}
         aria-expanded={isTooltipOpen}
@@ -103,7 +103,7 @@ export function RealtimeStatusIndicator({ status, variant = 'default', className
         <div
           role="dialog"
           aria-live="polite"
-          className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-700 shadow-lg"
+          className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-white/10 bg-slate-900/95 p-3 text-xs font-medium text-slate-200 shadow-2xl shadow-black/40 backdrop-blur-xl"
           data-testid="realtime-status-tooltip"
         >
           {config.label}

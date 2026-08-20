@@ -66,7 +66,7 @@ export function InstallBanner() {
           <button
             type="button"
             onClick={install}
-            className="rounded-md bg-cyan-900/70 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-800"
+            className="rounded-md bg-indigo-900/70 px-3 py-1.5 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-800"
           >
             Instalar
           </button>

@@ -46,7 +46,7 @@ export function OfflineIndicator() {
   if (isSyncing && syncPendingCount > 0) {
     return (
       <div
-        className="fixed top-0 left-0 right-0 z-50 bg-cyan-600 text-white px-4 py-2 flex items-center justify-center text-sm font-medium shadow-md"
+        className="fixed top-0 left-0 right-0 z-50 bg-indigo-600 text-white px-4 py-2 flex items-center justify-center text-sm font-medium shadow-md"
         data-testid="syncing-indicator"
       >
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
