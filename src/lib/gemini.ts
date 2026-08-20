@@ -27,8 +27,23 @@ export async function extractEquipmentFromText(
     body: JSON.stringify({ text }),
   });
 
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    // Isso acontece quando a rota /api/extract-equipment não chega na
+    // function (ex.: um rewrite de SPA no vercel.json capturando /api/* e
+    // devolvendo o index.html). Mensagem explícita para não falhar em silêncio.
+    console.error('extractEquipmentFromText: resposta não-JSON recebida de /api/extract-equipment', {
+      status: response.status,
+      contentType,
+    });
+    throw new Error(
+      'A extração por IA não está acessível (rota /api/extract-equipment não respondeu em JSON). Verifique o deploy da function.'
+    );
+  }
+
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
+    console.error('extractEquipmentFromText: erro retornado pela function', errorBody);
     throw new Error(errorBody.error || 'Falha ao extrair equipamentos.');
   }
 
